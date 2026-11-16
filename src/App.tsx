@@ -12,8 +12,15 @@ type View = "plans" | "foods" | "import";
 export default function App() {
   const [view, setView] = useState<View>("plans");
   const [openFoodId, setOpenFoodId] = useState<number | null>(null);
+  const [navKey, setNavKey] = useState(0);
   const inTauri = isTauri();
   const { t, locale, setLocale } = useI18n();
+
+  const goToView = (v: View) => {
+    setOpenFoodId(null);
+    setView(v);
+    setNavKey((k) => k + 1);
+  };
 
   const tabs: { k: View; label: string; icon: string }[] = [
     { k: "plans", label: t("nav.plans"), icon: "📅" },
@@ -33,10 +40,7 @@ export default function App() {
             {tabs.map((tb) => (
               <button
                 key={tb.k}
-                onClick={() => {
-                  setOpenFoodId(null);
-                  setView(tb.k);
-                }}
+                onClick={() => goToView(tb.k)}
                 disabled={!inTauri}
                 className={`btn btn-sm btn-ghost whitespace-nowrap shrink-0 ${
                   view === tb.k && openFoodId === null ? "btn-active bg-base-200" : ""
@@ -83,8 +87,12 @@ export default function App() {
           <FoodDetailView foodId={openFoodId} onBack={() => setOpenFoodId(null)} />
         ) : (
           <>
-            {view === "plans" && <PlansView onOpenFood={setOpenFoodId} />}
-            {view === "foods" && <FoodsView onOpenFood={setOpenFoodId} />}
+            {view === "plans" && (
+              <PlansView key={`plans-${navKey}`} onOpenFood={setOpenFoodId} />
+            )}
+            {view === "foods" && (
+              <FoodsView key={`foods-${navKey}`} onOpenFood={setOpenFoodId} />
+            )}
             {view === "import" && <ImportView />}
           </>
         )}

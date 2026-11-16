@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import type { Plan, Food, PlanMealDetail } from "../lib/types";
 import { MEAL_EMOJI, timeToMinutes, minutesToInput } from "../lib/types";
 import { useI18n } from "../lib/i18n";
+import { useConfirm } from "./ConfirmDialog";
 
 export default function WeekView({
   plan,
@@ -14,6 +15,7 @@ export default function WeekView({
   onOpenFood: (id: number) => void;
 }) {
   const { t, weekdayName, formatTime } = useI18n();
+  const askConfirm = useConfirm();
   const [weekDetails, setWeekDetails] = useState<PlanMealDetail[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
   const [focusedDay, setFocusedDay] = useState<number>(() => new Date().getDay());
@@ -260,7 +262,15 @@ export default function WeekView({
               onOpenFood={onOpenFood}
               onEdit={() => setEditing({ weekday: focusedDay, detail: m })}
               onDelete={async () => {
-                if (!confirm(t("week.deleteMealConfirm", { name: m.details.meal.name }))) return;
+                const ok = await askConfirm({
+                  message: t("week.deleteMealConfirm", {
+                    name: m.details.meal.name,
+                  }),
+                  danger: true,
+                  confirmLabel: t("common.delete"),
+                  cancelLabel: t("common.cancel"),
+                });
+                if (!ok) return;
                 await api.deleteMeal(m.details.meal.id);
                 refresh();
               }}
@@ -453,11 +463,11 @@ function MealEditor({
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 space-y-4">

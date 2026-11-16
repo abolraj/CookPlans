@@ -3,6 +3,7 @@ import { api } from "../lib/api";
 import type { Plan } from "../lib/types";
 import WeekView from "./WeekView";
 import { useI18n } from "../lib/i18n";
+import { useConfirm } from "./ConfirmDialog";
 
 function slugify(s: string) {
   return (
@@ -16,6 +17,7 @@ function slugify(s: string) {
 
 export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => void }) {
   const { t, weekdayName } = useI18n();
+  const askConfirm = useConfirm();
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -33,7 +35,13 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
     const msg = p.isActive
       ? t("plans.deleteActiveConfirm", { name: p.name })
       : t("plans.deleteConfirm", { name: p.name });
-    if (!confirm(msg)) return;
+    const ok = await askConfirm({
+      message: msg,
+      danger: true,
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!ok) return;
     try {
       await api.deletePlan(p.id);
       if (selected?.id === p.id) setSelected(null);
@@ -110,18 +118,18 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
       {plans.length === 0 ? (
         <div className="card bg-base-200 p-8 text-center opacity-70">{t("plans.empty")}</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {plans.map((p) => (
-            <div key={p.id} className="group relative">
+            <div key={p.id} className="group relative h-full">
               <div
                 onClick={() => setSelected(p)}
-                className={`card bg-base-200 border-2 transition cursor-pointer hover:-translate-y-0.5 hover:shadow-xl ${
+                className={`card bg-base-200 border-2 transition cursor-pointer hover:-translate-y-0.5 hover:shadow-xl h-full flex flex-col ${
                   p.isActive
                     ? "border-primary shadow-lg shadow-primary/20"
                     : "border-base-300 hover:border-primary/60"
                 }`}
               >
-                <div className="card-body p-5 min-w-0">
+                <div className="card-body p-5 min-w-0 flex-1">
                   <div className="flex items-start gap-2">
                     <div className="text-3xl shrink-0">📖</div>
                     <div className="flex-1 min-w-0">
@@ -144,7 +152,7 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
                     </p>
                   )}
                   <div className="divider my-2" />
-                  <div className="text-xs opacity-60 flex items-center gap-2 min-w-0 pe-8">
+                  <div className="text-xs opacity-60 flex items-center gap-2 min-w-0 pe-8 mt-auto">
                     <span className="truncate">
                       🗓 {t("plans.startsOn", { day: weekdayName(p.startWeekday) })}
                     </span>
@@ -207,11 +215,11 @@ function CreatePlanModal({ onClose, onCreated }: { onClose: () => void; onCreate
 
   return (
     <div
-      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 space-y-4">

@@ -5,6 +5,7 @@ import { minutesToInput, timeToMinutes } from "../lib/types";
 import FoodFormModal from "./FoodFormModal";
 import StepFormModal from "./StepFormModal";
 import { useI18n } from "../lib/i18n";
+import { useConfirm } from "./ConfirmDialog";
 
 type DurationMode = "normal" | "max" | "min";
 
@@ -16,6 +17,7 @@ export default function FoodDetailView({
   onBack: () => void;
 }) {
   const { t, formatTime } = useI18n();
+  const askConfirm = useConfirm();
   const [food, setFood] = useState<Food | null>(null);
   const [steps, setSteps] = useState<FoodStep[]>([]);
   const [mode, setMode] = useState<DurationMode>("normal");
@@ -113,7 +115,13 @@ export default function FoodDetailView({
               <button
                 className="btn btn-sm btn-error btn-outline"
                 onClick={async () => {
-                  if (!confirm(t("foodDetail.deleteFoodConfirm"))) return;
+                  const ok = await askConfirm({
+                    message: t("foodDetail.deleteFoodConfirm"),
+                    danger: true,
+                    confirmLabel: t("common.delete"),
+                    cancelLabel: t("common.cancel"),
+                  });
+                  if (!ok) return;
                   await api.deleteFood(food.id);
                   onBack();
                 }}
@@ -205,7 +213,13 @@ export default function FoodDetailView({
                 <button
                   className="btn btn-xs btn-ghost text-error shrink-0"
                   onClick={async () => {
-                    if (!confirm(t("foodDetail.deleteStepConfirm"))) return;
+                    const ok = await askConfirm({
+                      message: t("foodDetail.deleteStepConfirm"),
+                      danger: true,
+                      confirmLabel: t("common.delete"),
+                      cancelLabel: t("common.cancel"),
+                    });
+                    if (!ok) return;
                     await api.deleteStep(s.id);
                     reloadSteps();
                   }}

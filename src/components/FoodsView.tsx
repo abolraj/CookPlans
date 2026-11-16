@@ -37,14 +37,14 @@ export default function FoodsView({ onOpenFood }: { onOpenFood: (id: number) => 
       {foods.length === 0 ? (
         <div className="card bg-base-200 p-8 text-center opacity-70">{t("foods.empty")}</div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 items-start">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
           {foods.map((f) => (
             <button
               key={f.id}
               onClick={() => onOpenFood(f.id)}
-              className="card bg-base-200 border-2 border-base-300 hover:border-primary transition text-start w-full hover:-translate-y-0.5 hover:shadow-xl"
+              className="card bg-base-200 border-2 border-base-300 hover:border-primary transition text-start w-full h-full flex flex-col hover:-translate-y-0.5 hover:shadow-xl"
             >
-              <div className="card-body p-4 min-w-0">
+              <div className="card-body p-4 min-w-0 flex-1">
                 <div className="flex items-start gap-2">
                   <div className="text-3xl shrink-0">🥘</div>
                   <div className="flex-1 min-w-0">
