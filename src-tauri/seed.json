@@ -1,94 +1,252 @@
 {
   "plans": [
     {
-      "name": "Starter Week",
-      "slug": "starter-week",
-      "description": "A friendly starter plan with several meals per week.",
+      "name": "هفته ایرانی",
+      "slug": "irani-week",
+      "description": "یک هفته کامل با غذاهای اصیل ایرانی، از صبحانه‌های سنتی تا خورش‌های خانگی. مناسب برای شروع کار با CookPlans.",
       "isActive": true,
       "startWeekday": 6
     }
   ],
   "foods": [
     {
-      "name": "Scrambled Eggs",
-      "slug": "scrambled-eggs",
-      "description": "Fluffy scrambled eggs with butter.",
+      "name": "نان و پنیر و گردو",
+      "slug": "noon-panir-gerdoo",
+      "description": "صبحانه سنتی ایرانی با نان تازه، پنیر لیقوان و گردوی تازه.",
+      "minDuration": 3,
+      "maxDuration": 5,
+      "steps": [
+        { "name": "آماده‌سازی سفره", "description": "نان، پنیر و گردو را از یخچال بیرون بیاورید.", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 },
+        { "name": "چیدن و سرو", "description": "نان را برش بزنید و با پنیر و گردو سرو کنید.", "duration": 3, "minDuration": 2, "maxDuration": 3, "offsetTime": 2 }
+      ]
+    },
+    {
+      "name": "عدسی",
+      "slug": "adasi",
+      "description": "عدسی گرم و مقوی با پیاز داغ و نعناع خشک.",
+      "minDuration": 25,
+      "maxDuration": 30,
+      "steps": [
+        { "name": "خیساندن عدس", "description": "عدس را بشویید و در آب ولرم خیس کنید.", "duration": 5, "minDuration": 3, "maxDuration": 7, "offsetTime": 0 },
+        { "name": "پخت عدس", "description": "عدس را با پیاز داغ و رب گوجه بپزید تا نرم شود.", "duration": 20, "minDuration": 15, "maxDuration": 22, "offsetTime": 5 },
+        { "name": "نعناع داغ و سرو", "description": "نعناع خشک را با روغن داغ کنید و روی عدسی بریزید.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 25 }
+      ]
+    },
+    {
+      "name": "نیمرو",
+      "slug": "nimru",
+      "description": "نیمروی ساده با تخم‌مرغ محلی و روغن داغ.",
       "minDuration": 5,
       "maxDuration": 8,
       "steps": [
-        { "name": "Crack & whisk", "description": "Crack eggs into a bowl and whisk.", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 },
-        { "name": "Melt butter", "description": "Melt butter in a pan on low heat.", "duration": 1, "minDuration": 1, "maxDuration": 2, "offsetTime": 2 },
-        { "name": "Cook gently", "description": "Stir slowly until just set.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 3 }
+        { "name": "شکستن تخم‌مرغ‌ها", "description": "تخم‌مرغ‌ها را در کاسه بشکنید و نمک و فلفل بزنید.", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 },
+        { "name": "سرخ کردن", "description": "در ماهیتابه داغ بریزید و بگذارید تا خودش را بگیرد.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 2 },
+        { "name": "سرو", "description": "روی نان تازه سرو کنید.", "duration": 1, "minDuration": 1, "maxDuration": 2, "offsetTime": 7 }
       ]
     },
     {
-      "name": "Buttered Toast",
-      "slug": "buttered-toast",
-      "description": "Crispy toast with butter.",
-      "minDuration": 3,
-      "maxDuration": 4,
-      "steps": [
-        { "name": "Toast bread", "description": "Toast until golden.", "duration": 2, "minDuration": 2, "maxDuration": 3, "offsetTime": 0 },
-        { "name": "Butter", "description": "Spread butter while warm.", "duration": 1, "minDuration": 1, "maxDuration": 1, "offsetTime": 3 }
-      ]
-    },
-    {
-      "name": "Pancakes",
-      "slug": "pancakes",
-      "description": "Fluffy pancakes from scratch.",
-      "minDuration": 15,
-      "maxDuration": 20,
-      "steps": [
-        { "name": "Mix batter", "description": "Whisk flour, milk, egg, baking powder.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 0 },
-        { "name": "Rest batter", "description": "Let the batter rest briefly.", "duration": 3, "minDuration": 2, "maxDuration": 5, "offsetTime": 5 },
-        { "name": "Cook pancakes", "description": "Cook each side until golden.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 8 }
-      ]
-    },
-    {
-      "name": "Spaghetti Pomodoro",
-      "slug": "spaghetti-pomodoro",
-      "description": "Simple tomato pasta.",
+      "name": "املت گوجه‌فرنگی",
+      "slug": "omelet",
+      "description": "املت گوجه‌فرنگی خانگی با پیاز کاراملی.",
       "minDuration": 12,
       "maxDuration": 15,
       "steps": [
-        { "name": "Boil water", "description": "Bring salted water to a rolling boil.", "duration": 5, "minDuration": 4, "maxDuration": 7, "offsetTime": 0 },
-        { "name": "Cook pasta", "description": "Cook until al dente.", "duration": 10, "minDuration": 9, "maxDuration": 11, "offsetTime": 5 },
-        { "name": "Toss with sauce", "description": "Combine with warmed tomato sauce.", "duration": 1, "minDuration": 1, "maxDuration": 2, "offsetTime": 15 }
+        { "name": "سرخ کردن پیاز", "description": "پیاز نگینی را با روغن تفت دهید تا طلایی شود.", "duration": 5, "minDuration": 4, "maxDuration": 6, "offsetTime": 0 },
+        { "name": "تفت دادن گوجه", "description": "گوجه‌های رنده شده را اضافه کنید و تفت دهید.", "duration": 5, "minDuration": 4, "maxDuration": 6, "offsetTime": 5 },
+        { "name": "افزودن تخم‌مرغ", "description": "تخم‌مرغ‌ها را اضافه کنید و هم بزنید تا بپزد.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 10 }
       ]
     },
     {
-      "name": "Pan-Seared Chicken",
-      "slug": "pan-seared-chicken",
-      "description": "Golden chicken breast.",
-      "minDuration": 20,
-      "maxDuration": 25,
+      "name": "حلوا شکری",
+      "slug": "halva-shokari",
+      "description": "حلوا شکری سنتی با زعفران و گلاب.",
+      "minDuration": 15,
+      "maxDuration": 20,
       "steps": [
-        { "name": "Season", "description": "Season with salt and pepper.", "duration": 3, "minDuration": 2, "maxDuration": 4, "offsetTime": 0 },
-        { "name": "Sear", "description": "Sear both sides until golden.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 3 },
-        { "name": "Rest", "description": "Rest before slicing.", "duration": 5, "minDuration": 4, "maxDuration": 6, "offsetTime": 20 }
+        { "name": "آماده کردن مواد", "description": "آرد برنج، شکر، روغن و زعفران دم‌کرده را آماده کنید.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 0 },
+        { "name": "پخت شربت", "description": "شکر را با آب و زعفران بجوشانید تا شربت شود.", "duration": 10, "minDuration": 7, "maxDuration": 12, "offsetTime": 5 },
+        { "name": "افزودن آرد و روغن", "description": "آرد را در روغن داغ تفت دهید و شربت را اضافه کنید.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 15 }
       ]
     },
     {
-      "name": "Steamed Rice",
-      "slug": "steamed-rice",
-      "description": "Fluffy steamed white rice.",
-      "minDuration": 20,
-      "maxDuration": 25,
+      "name": "چلوکباب کوبیده",
+      "slug": "chelow-kabab-koobideh",
+      "description": "چلوکباب کوبیده با کره و گوجه کبابی.",
+      "minDuration": 40,
+      "maxDuration": 50,
       "steps": [
-        { "name": "Rinse rice", "description": "Rinse until water runs clear.", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 },
-        { "name": "Cook rice", "description": "Simmer covered until tender.", "duration": 20, "minDuration": 18, "maxDuration": 22, "offsetTime": 2 }
+        { "name": "خیساندن برنج", "description": "برنج ایرانی را با نمک خیس کنید.", "duration": 10, "minDuration": 5, "maxDuration": 15, "offsetTime": 0 },
+        { "name": "پخت برنج", "description": "برنج را بپزید تا نیم‌پز شود.", "duration": 30, "minDuration": 25, "maxDuration": 35, "offsetTime": 10 },
+        { "name": "آماده کردن گوشت", "description": "گوشت چرخ‌کرده را با پیاز رنده، نمک و فلفل مخلوط کنید.", "duration": 5, "minDuration": 3, "maxDuration": 7, "offsetTime": 10 },
+        { "name": "گریل کباب", "description": "کباب‌ها را به سیخ بکشید و روی آتش گریل کنید.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 40 },
+        { "name": "دم کشیدن و سرو", "description": "برنج را آبکش و دم کنید و با کره و کباب سرو کنید.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 45 }
+      ]
+    },
+    {
+      "name": "خورش قیمه",
+      "slug": "gheymeh",
+      "description": "خورش قیمه با لپه، سیب‌زمینی سرخ‌شده و لیمو عمانی.",
+      "minDuration": 70,
+      "maxDuration": 90,
+      "steps": [
+        { "name": "خیساندن لپه", "description": "لپه را نیم ساعت در آب ولرم خیس کنید.", "duration": 15, "minDuration": 10, "maxDuration": 20, "offsetTime": 0 },
+        { "name": "سرخ کردن پیاز و گوشت", "description": "پیاز و گوشت خورشی را با زردچوبه تفت دهید.", "duration": 15, "minDuration": 10, "maxDuration": 18, "offsetTime": 0 },
+        { "name": "افزودن رب و ادویه", "description": "رب گوجه و ادویه‌ها را اضافه کنید و تفت دهید.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 15 },
+        { "name": "پخت خورش", "description": "لپه و آب را اضافه کنید و بگذارید خورش جا بیفتد.", "duration": 50, "minDuration": 40, "maxDuration": 55, "offsetTime": 20 },
+        { "name": "لیمو و سیب‌زمینی", "description": "لیمو عمانی و سیب‌زمینی سرخ‌شده را اضافه کنید.", "duration": 10, "minDuration": 5, "maxDuration": 12, "offsetTime": 70 },
+        { "name": "سرو با برنج", "description": "خورش را با چلو سرو کنید.", "duration": 10, "minDuration": 5, "maxDuration": 10, "offsetTime": 80 }
+      ]
+    },
+    {
+      "name": "قورمه سبزی",
+      "slug": "ghormeh-sabzi",
+      "description": "قورمه سبزی جاافتاده با سبزی تازه و لیمو عمانی.",
+      "minDuration": 90,
+      "maxDuration": 120,
+      "steps": [
+        { "name": "شستن و تفت دادن سبزی", "description": "سبزی خورشتی را بشویید و در روغن تفت دهید.", "duration": 15, "minDuration": 10, "maxDuration": 20, "offsetTime": 0 },
+        { "name": "سرخ کردن پیاز", "description": "پیاز نگینی را با زردچوبه تفت دهید.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 15 },
+        { "name": "افزودن گوشت و لوبیا", "description": "گوشت و لوبیا قرمز را اضافه کنید و تفت دهید.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 25 },
+        { "name": "پخت کامل خورش", "description": "آب اضافه کنید و روی حرارت ملایم بگذارید تا جا بیفتد.", "duration": 70, "minDuration": 60, "maxDuration": 80, "offsetTime": 35 },
+        { "name": "لیمو و آبغوره", "description": "لیمو عمانی و آبغوره را اضافه کنید.", "duration": 5, "minDuration": 3, "maxDuration": 8, "offsetTime": 105 },
+        { "name": "سرو با برنج", "description": "خورش را با چلو سرو کنید.", "duration": 10, "minDuration": 5, "maxDuration": 10, "offsetTime": 110 }
+      ]
+    },
+    {
+      "name": "فسنجان",
+      "slug": "fesenjan",
+      "description": "فسنجان شمالی با گردوی آسیاب‌شده و رب انار.",
+      "minDuration": 80,
+      "maxDuration": 100,
+      "steps": [
+        { "name": "آسیاب گردو", "description": "گردو را آسیاب کنید و در آب خیس کنید.", "duration": 10, "minDuration": 5, "maxDuration": 15, "offsetTime": 0 },
+        { "name": "پخت گردو", "description": "گردو را با آب روی حرارت ملایم بپزید تا روغن بیندازد.", "duration": 60, "minDuration": 50, "maxDuration": 70, "offsetTime": 10 },
+        { "name": "سرخ کردن مرغ", "description": "مرغ را با پیاز و زردچوبه سرخ کنید.", "duration": 15, "minDuration": 10, "maxDuration": 18, "offsetTime": 20 },
+        { "name": "افزودن رب انار و مرغ", "description": "رب انار و مرغ را به گردو اضافه کنید.", "duration": 15, "minDuration": 10, "maxDuration": 15, "offsetTime": 70 },
+        { "name": "سرو با برنج", "description": "فسنجان را با چلو سرو کنید.", "duration": 15, "minDuration": 10, "maxDuration": 15, "offsetTime": 85 }
+      ]
+    },
+    {
+      "name": "کوکو سبزی",
+      "slug": "kookoo-sabzi",
+      "description": "کوکو سبزی خانگی با سبزی تازه و تخم‌مرغ محلی.",
+      "minDuration": 25,
+      "maxDuration": 35,
+      "steps": [
+        { "name": "آماده کردن سبزی", "description": "سبزی کوکو را خرد و با تخم‌مرغ مخلوط کنید.", "duration": 10, "minDuration": 5, "maxDuration": 12, "offsetTime": 0 },
+        { "name": "مخلوط کردن مواد", "description": "آرد، بیکینگ پودر، نمک و فلفل را اضافه کنید.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 10 },
+        { "name": "سرخ کردن کوکو", "description": "مواد را در ماهیتابه بریزید و دو طرف را طلایی کنید.", "duration": 20, "minDuration": 15, "maxDuration": 22, "offsetTime": 15 }
+      ]
+    },
+    {
+      "name": "زرشک پلو با مرغ",
+      "slug": "zereshk-polo-morgh",
+      "description": "زرشک پلو مجلسی با مرغ زعفرانی.",
+      "minDuration": 55,
+      "maxDuration": 70,
+      "steps": [
+        { "name": "خیساندن برنج", "description": "برنج را با نمک خیس کنید.", "duration": 10, "minDuration": 5, "maxDuration": 15, "offsetTime": 0 },
+        { "name": "پخت مرغ", "description": "مرغ را با پیاز، زردچوبه و زعفران بپزید.", "duration": 30, "minDuration": 25, "maxDuration": 35, "offsetTime": 5 },
+        { "name": "آبکش و دم برنج", "description": "برنج را آبکش و با روغن دم کنید.", "duration": 20, "minDuration": 15, "maxDuration": 25, "offsetTime": 40 },
+        { "name": "تفت دادن زرشک", "description": "زرشک را با کره و زعفران تفت دهید.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 60 },
+        { "name": "سرو", "description": "زرشک را روی برنج بریزید و با مرغ سرو کنید.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 65 }
+      ]
+    },
+    {
+      "name": "باقالی پلو",
+      "slug": "baghali-polo",
+      "description": "باقالی پلو با گوشت و شوید تازه.",
+      "minDuration": 60,
+      "maxDuration": 80,
+      "steps": [
+        { "name": "خیساندن برنج و باقالی", "description": "برنج و باقالی را با نمک خیس کنید.", "duration": 15, "minDuration": 10, "maxDuration": 20, "offsetTime": 0 },
+        { "name": "پخت گوشت", "description": "گوشت را با پیاز و زردچوبه بپزید.", "duration": 30, "minDuration": 25, "maxDuration": 35, "offsetTime": 10 },
+        { "name": "آبکش کردن برنج", "description": "برنج را نیم‌پز کنید و آبکش کنید.", "duration": 10, "minDuration": 5, "maxDuration": 12, "offsetTime": 40 },
+        { "name": "دم کشیدن", "description": "باقالی، شوید و گوشت را لایه‌لایه با برنج دم کنید.", "duration": 25, "minDuration": 20, "maxDuration": 30, "offsetTime": 50 },
+        { "name": "سرو", "description": "باقالی پلو را در ظرف بکشید و سرو کنید.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 75 }
+      ]
+    },
+    {
+      "name": "سبزی پلو با ماهی",
+      "slug": "sabzi-polo-mahi",
+      "description": "سبزی پلو با ماهی سرخ‌شده، غذای سنتی شب عید.",
+      "minDuration": 45,
+      "maxDuration": 60,
+      "steps": [
+        { "name": "خیساندن برنج", "description": "برنج را با نمک خیس کنید.", "duration": 15, "minDuration": 10, "maxDuration": 20, "offsetTime": 0 },
+        { "name": "آماده کردن ماهی", "description": "ماهی را پاک کنید و با ادویه مزه‌دار کنید.", "duration": 5, "minDuration": 3, "maxDuration": 8, "offsetTime": 0 },
+        { "name": "سرخ کردن ماهی", "description": "ماهی را در روغن داغ سرخ کنید.", "duration": 15, "minDuration": 10, "maxDuration": 18, "offsetTime": 5 },
+        { "name": "پخت برنج با سبزی", "description": "برنج را با سبزی معطر بپزید و دم کنید.", "duration": 40, "minDuration": 35, "maxDuration": 45, "offsetTime": 15 },
+        { "name": "سرو", "description": "سبزی پلو را با ماهی سرو کنید.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 55 }
+      ]
+    },
+    {
+      "name": "آش رشته",
+      "slug": "ash-reshteh",
+      "description": "آش رشته با کشک و نعناع داغ.",
+      "minDuration": 50,
+      "maxDuration": 70,
+      "steps": [
+        { "name": "خیساندن حبوبات", "description": "نخود و لوبیا را خیس کنید.", "duration": 10, "minDuration": 5, "maxDuration": 15, "offsetTime": 0 },
+        { "name": "پخت حبوبات", "description": "حبوبات را با پیاز داغ بپزید.", "duration": 30, "minDuration": 25, "maxDuration": 35, "offsetTime": 10 },
+        { "name": "افزودن سبزی و رشته", "description": "سبزی آش و رشته را اضافه کنید.", "duration": 20, "minDuration": 15, "maxDuration": 22, "offsetTime": 40 },
+        { "name": "کشک و نعناع داغ", "description": "آش را با کشک و نعناع داغ تزئین کنید.", "duration": 10, "minDuration": 5, "maxDuration": 10, "offsetTime": 60 }
+      ]
+    },
+    {
+      "name": "جوجه کباب",
+      "slug": "joojeh-kabab",
+      "description": "جوجه کباب زعفرانی با کره و لیمو.",
+      "minDuration": 40,
+      "maxDuration": 50,
+      "steps": [
+        { "name": "خیساندن جوجه", "description": "جوجه را در ماست، زعفران و آبلیمو خیس کنید.", "duration": 15, "minDuration": 10, "maxDuration": 20, "offsetTime": 0 },
+        { "name": "به سیخ کشیدن", "description": "جوجه‌ها را به سیخ بکشید.", "duration": 10, "minDuration": 5, "maxDuration": 12, "offsetTime": 15 },
+        { "name": "گریل کردن", "description": "روی آتش گریل کنید تا طلایی شود.", "duration": 20, "minDuration": 15, "maxDuration": 22, "offsetTime": 25 },
+        { "name": "سرو", "description": "با کره ذوب‌شده و لیمو سرو کنید.", "duration": 5, "minDuration": 3, "maxDuration": 5, "offsetTime": 45 }
+      ]
+    },
+    {
+      "name": "میرزا قاسمی",
+      "slug": "mirza-ghasemi",
+      "description": "میرزا قاسمی شمالی با بادمجان کبابی و تخم‌مرغ.",
+      "minDuration": 25,
+      "maxDuration": 35,
+      "steps": [
+        { "name": "کباب کردن بادمجان", "description": "بادمجان‌ها را روی شعله یا فر کباب کنید.", "duration": 15, "minDuration": 10, "maxDuration": 18, "offsetTime": 0 },
+        { "name": "پوست کندن بادمجان", "description": "پوست بادمجان‌ها را بگیرید و له کنید.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 15 },
+        { "name": "تفت دادن سیر", "description": "سیر را با روغن تفت دهید.", "duration": 3, "minDuration": 2, "maxDuration": 4, "offsetTime": 20 },
+        { "name": "افزودن مواد", "description": "بادمجان، گوجه و تخم‌مرغ را اضافه کنید و هم بزنید.", "duration": 10, "minDuration": 7, "maxDuration": 12, "offsetTime": 23 }
       ]
     }
   ],
   "meals": [
-    { "planSlug": "starter-week", "weekday": 1, "name": "Eggs", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "scrambled-eggs" },
-    { "planSlug": "starter-week", "weekday": 1, "name": "Toast", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "buttered-toast" },
-    { "planSlug": "starter-week", "weekday": 2, "name": "Pasta Tuesday", "mealType": "lunch", "deadlineAt": 780, "foodSlug": "spaghetti-pomodoro" },
-    { "planSlug": "starter-week", "weekday": 3, "name": "Chicken", "mealType": "dinner", "deadlineAt": 1140, "foodSlug": "pan-seared-chicken" },
-    { "planSlug": "starter-week", "weekday": 3, "name": "Rice", "mealType": "dinner", "deadlineAt": 1140, "foodSlug": "steamed-rice" },
-    { "planSlug": "starter-week", "weekday": 4, "name": "Pancake Morning", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "pancakes" },
-    { "planSlug": "starter-week", "weekday": 5, "name": "Friday Pasta", "mealType": "lunch", "deadlineAt": 780, "foodSlug": "spaghetti-pomodoro" },
-    { "planSlug": "starter-week", "weekday": 6, "name": "Saturday Chicken", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "pan-seared-chicken" },
-    { "planSlug": "starter-week", "weekday": 0, "name": "Sunday Eggs", "mealType": "breakfast", "deadlineAt": 600, "foodSlug": "scrambled-eggs" }
+    { "planSlug": "irani-week", "weekday": 6, "name": "نان و پنیر و گردو", "description": "صبحانه سنتی ایرانی", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "noon-panir-gerdoo" },
+    { "planSlug": "irani-week", "weekday": 6, "name": "چلوکباب کوبیده", "description": "ناهار مجلسی شنبه", "mealType": "lunch", "deadlineAt": 780, "foodSlug": "chelow-kabab-koobideh" },
+    { "planSlug": "irani-week", "weekday": 6, "name": "کوکو سبزی", "description": "شام سبک شنبه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "kookoo-sabzi" },
+
+    { "planSlug": "irani-week", "weekday": 0, "name": "عدسی", "description": "صبحانه گرم یکشنبه", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "adasi" },
+    { "planSlug": "irani-week", "weekday": 0, "name": "خورش قیمه", "description": "ناهار یکشنبه با چلو", "mealType": "lunch", "deadlineAt": 810, "foodSlug": "gheymeh" },
+    { "planSlug": "irani-week", "weekday": 0, "name": "املت گوجه‌فرنگی", "description": "شام ساده یکشنبه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "omelet" },
+
+    { "planSlug": "irani-week", "weekday": 1, "name": "نیمرو", "description": "صبحانه دوشنبه", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "nimru" },
+    { "planSlug": "irani-week", "weekday": 1, "name": "قورمه سبزی", "description": "ناهار دوشنبه، خورش جاافتاده", "mealType": "lunch", "deadlineAt": 780, "foodSlug": "ghormeh-sabzi" },
+    { "planSlug": "irani-week", "weekday": 1, "name": "میرزا قاسمی", "description": "شام شمالی دوشنبه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "mirza-ghasemi" },
+
+    { "planSlug": "irani-week", "weekday": 2, "name": "حلوا شکری", "description": "صبحانه شیرین سه‌شنبه", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "halva-shokari" },
+    { "planSlug": "irani-week", "weekday": 2, "name": "زرشک پلو با مرغ", "description": "ناهار مجلسی سه‌شنبه", "mealType": "lunch", "deadlineAt": 810, "foodSlug": "zereshk-polo-morgh" },
+    { "planSlug": "irani-week", "weekday": 2, "name": "نان و پنیر و گردو", "description": "شام سبک سه‌شنبه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "noon-panir-gerdoo" },
+
+    { "planSlug": "irani-week", "weekday": 3, "name": "عدسی", "description": "صبحانه گرم چهارشنبه", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "adasi" },
+    { "planSlug": "irani-week", "weekday": 3, "name": "باقالی پلو", "description": "ناهار چهارشنبه با گوشت", "mealType": "lunch", "deadlineAt": 810, "foodSlug": "baghali-polo" },
+    { "planSlug": "irani-week", "weekday": 3, "name": "کوکو سبزی", "description": "شام چهارشنبه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "kookoo-sabzi" },
+
+    { "planSlug": "irani-week", "weekday": 4, "name": "املت گوجه‌فرنگی", "description": "صبحانه پنجشنبه", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "omelet" },
+    { "planSlug": "irani-week", "weekday": 4, "name": "فسنجان", "description": "ناهار پنجشنبه با چلو", "mealType": "lunch", "deadlineAt": 810, "foodSlug": "fesenjan" },
+    { "planSlug": "irani-week", "weekday": 4, "name": "آش رشته", "description": "شام پنجشنبه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "ash-reshteh" },
+
+    { "planSlug": "irani-week", "weekday": 5, "name": "نیمرو", "description": "صبحانه جمعه، کمی دیرتر", "mealType": "breakfast", "deadlineAt": 540, "foodSlug": "nimru" },
+    { "planSlug": "irani-week", "weekday": 5, "name": "سبزی پلو با ماهی", "description": "ناهار جمعه", "mealType": "lunch", "deadlineAt": 810, "foodSlug": "sabzi-polo-mahi" },
+    { "planSlug": "irani-week", "weekday": 5, "name": "جوجه کباب", "description": "شام جمعه", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "joojeh-kabab" }
   ]
 }

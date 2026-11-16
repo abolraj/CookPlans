@@ -88,7 +88,7 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
             <div key={p.id} className="mb-4 break-inside-avoid">
               <div
                 onClick={() => setSelected(p)}
-                className={`card bg-base-200 border-2 transition cursor-pointer hover:-translate-y-0.5 hover:shadow-xl ${
+                className={`card bg-base-200 border-2 transition cursor-pointer hover:shadow-xl ${
                   p.isActive
                     ? "border-primary shadow-lg shadow-primary/20"
                     : "border-base-300 hover:border-primary/60"
