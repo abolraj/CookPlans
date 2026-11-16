@@ -1,6 +1,7 @@
 import { useMemo, useRef, useState } from "react";
 import { api } from "../lib/api";
 import type { ImportPayload, ImportResult } from "../lib/types";
+import { AI_IMPORT_GUIDE } from "../lib/aiGuide";
 
 const EXAMPLE = JSON.stringify(
   {
@@ -10,6 +11,7 @@ const EXAMPLE = JSON.stringify(
         slug: "my-week",
         description: "A sample imported plan.",
         isActive: true,
+        startWeekday: 6,
       },
     ],
     foods: [
@@ -54,11 +56,36 @@ const EXAMPLE = JSON.stringify(
   2
 );
 
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    /* fall through */
+  }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
 export default function ImportView() {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const parsed = useMemo<{ ok: boolean; data?: ImportPayload; error?: string }>(() => {
@@ -69,6 +96,18 @@ export default function ImportView() {
       return { ok: false, error: String(e) };
     }
   }, [text]);
+
+  async function doCopyGuide() {
+    const ok = await copyText(AI_IMPORT_GUIDE);
+    setCopied(ok ? "AI guide copied — paste it into your AI agent." : "Copy failed");
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  async function doCopyExample() {
+    const ok = await copyText(EXAMPLE);
+    setCopied(ok ? "Example JSON copied." : "Copy failed");
+    setTimeout(() => setCopied(null), 2500);
+  }
 
   async function doImport() {
     if (!parsed.ok || !parsed.data) return;
@@ -92,23 +131,50 @@ export default function ImportView() {
     setText(content);
   }
 
-  const counts = parsed.ok && parsed.data
-    ? {
-        plans: parsed.data.plans?.length ?? 0,
-        foods: parsed.data.foods?.length ?? 0,
-        meals: parsed.data.meals?.length ?? 0,
-      }
-    : null;
+  const counts =
+    parsed.ok && parsed.data
+      ? {
+          plans: parsed.data.plans?.length ?? 0,
+          foods: parsed.data.foods?.length ?? 0,
+          meals: parsed.data.meals?.length ?? 0,
+        }
+      : null;
 
   return (
     <div className="max-w-5xl mx-auto space-y-6">
       <div>
         <h1 className="text-2xl font-bold">Import Plan Bundle</h1>
         <p className="text-sm opacity-70 mt-1">
-          Paste or drop a JSON bundle of plans, foods and meals. The same schema is
-          documented in <code className="bg-base-200 px-1.5 py-0.5 rounded">AI_IMPORT_GUIDE.md</code> so
-          an AI agent can generate one for you.
+          Paste or drop a JSON bundle of plans, foods and meals. Use the AI helper
+          below to give your AI agent the exact schema it needs.
         </p>
+      </div>
+
+      <div className="card bg-gradient-to-br from-primary/15 to-secondary/10 border border-primary/30">
+        <div className="card-body p-4 sm:p-5">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <span className="text-3xl">🤖</span>
+              <div className="min-w-0">
+                <div className="font-bold">AI Helper</div>
+                <div className="text-xs opacity-70">
+                  Copy the guide, paste it to your AI agent, then paste the JSON it returns below.
+                </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-primary btn-sm" onClick={doCopyGuide}>
+                📋 Copy AI Guide
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={doCopyExample}>
+                Copy example JSON
+              </button>
+            </div>
+          </div>
+          {copied && (
+            <div className="alert alert-success text-sm py-2 mt-2">{copied}</div>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
@@ -216,6 +282,7 @@ export default function ImportView() {
               <h3 className="font-bold text-sm">Quick rules</h3>
               <ul className="text-xs opacity-70 space-y-1.5 list-disc list-inside">
                 <li><b>weekday</b>: 0 = Sun … 6 = Sat</li>
+                <li><b>startWeekday</b>: plan week start day (e.g. 6 = Sat for Iran)</li>
                 <li><b>deadlineAt</b>: minutes from midnight (420 = 7:00 AM)</li>
                 <li>All durations/offsets in <b>minutes</b></li>
                 <li>Slugs are unique per type</li>
@@ -223,15 +290,6 @@ export default function ImportView() {
                 <li>Meals reference foods by <code>foodSlugs</code></li>
                 <li>One meal per plan+weekday (extra are skipped)</li>
               </ul>
-            </div>
-          </div>
-          <div className="card bg-base-200 border border-base-300">
-            <div className="card-body p-4 space-y-2">
-              <h3 className="font-bold text-sm">For AI agents</h3>
-              <p className="text-xs opacity-70">
-                Ask your AI agent to read <code>AI_IMPORT_GUIDE.md</code> from the project
-                root and produce a JSON matching that schema. Paste the result here.
-              </p>
             </div>
           </div>
         </aside>
@@ -242,7 +300,11 @@ export default function ImportView() {
 
 function Stat({ label, value, muted }: { label: string; value: number; muted?: boolean }) {
   return (
-    <div className={`rounded-lg p-2 bg-base-100/60 border border-base-300 ${muted ? "opacity-60" : ""}`}>
+    <div
+      className={`rounded-lg p-2 bg-base-100/60 border border-base-300 ${
+        muted ? "opacity-60" : ""
+      }`}
+    >
       <div className="text-xl font-bold">{value}</div>
       <div className="text-[11px] opacity-60">{label}</div>
     </div>

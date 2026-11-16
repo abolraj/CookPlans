@@ -1,19 +1,16 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { Plan } from "../lib/types";
+import { FULL_WEEKDAYS } from "../lib/types";
 import WeekView from "./WeekView";
 
 function slugify(s: string) {
   return (
-    s
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "") || "plan"
+    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "plan"
   );
 }
 
-export default function PlansView() {
+export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => void }) {
   const [plans, setPlans] = useState<Plan[]>([]);
   const [selected, setSelected] = useState<Plan | null>(null);
   const [showCreate, setShowCreate] = useState(false);
@@ -35,7 +32,13 @@ export default function PlansView() {
     return (
       <div className="space-y-4">
         <div className="flex flex-wrap items-center gap-3">
-          <button className="btn btn-sm btn-ghost" onClick={() => { setSelected(null); refresh(); }}>
+          <button
+            className="btn btn-sm btn-ghost"
+            onClick={() => {
+              setSelected(null);
+              refresh();
+            }}
+          >
             ← Plans
           </button>
           <h1 className="text-2xl font-bold">{selected.name}</h1>
@@ -53,10 +56,12 @@ export default function PlansView() {
             </button>
           )}
         </div>
-        {selected.description && (
-          <p className="text-sm opacity-70">{selected.description}</p>
-        )}
-        <WeekView plan={selected} />
+        {selected.description && <p className="text-sm opacity-70">{selected.description}</p>}
+        <WeekView
+          plan={selected}
+          onPlanUpdated={(p) => setSelected(p)}
+          onOpenFood={onOpenFood}
+        />
       </div>
     );
   }
@@ -105,9 +110,7 @@ export default function PlansView() {
                   )}
                   <div className="divider my-2" />
                   <div className="text-xs opacity-60 flex items-center gap-2">
-                    <span>🗓 7 days</span>
-                    <span>·</span>
-                    <span>Click to open week view</span>
+                    <span>🗓 Starts {FULL_WEEKDAYS[p.startWeekday] ?? "Sunday"}</span>
                   </div>
                 </div>
               </div>
@@ -132,6 +135,7 @@ export default function PlansView() {
 function CreatePlanModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("");
   const [desc, setDesc] = useState("");
+  const [startWeekday, setStartWeekday] = useState(6);
   const [err, setErr] = useState<string | null>(null);
 
   async function submit() {
@@ -144,6 +148,7 @@ function CreatePlanModal({ onClose, onCreated }: { onClose: () => void; onCreate
         name: name.trim(),
         description: desc.trim() || undefined,
         slug: slugify(name),
+        startWeekday,
       });
       onCreated();
     } catch (e) {
@@ -163,7 +168,9 @@ function CreatePlanModal({ onClose, onCreated }: { onClose: () => void; onCreate
         <div className="p-6 space-y-4">
           <h2 className="text-xl font-bold">New Plan</h2>
           <div className="form-control">
-            <label className="label"><span className="label-text">Name</span></label>
+            <label className="label">
+              <span className="label-text">Name</span>
+            </label>
             <input
               className="input input-bordered w-full"
               value={name}
@@ -172,13 +179,29 @@ function CreatePlanModal({ onClose, onCreated }: { onClose: () => void; onCreate
             />
           </div>
           <div className="form-control">
-            <label className="label"><span className="label-text">Description</span></label>
+            <label className="label">
+              <span className="label-text">Description</span>
+            </label>
             <textarea
               className="textarea textarea-bordered w-full"
-              rows={3}
+              rows={2}
               value={desc}
               onChange={(e) => setDesc(e.target.value)}
             />
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">Week starts on</span>
+            </label>
+            <select
+              className="select select-bordered w-full"
+              value={startWeekday}
+              onChange={(e) => setStartWeekday(Number(e.target.value))}
+            >
+              {FULL_WEEKDAYS.map((d, i) => (
+                <option key={i} value={i}>{d}</option>
+              ))}
+            </select>
           </div>
           {err && <div className="alert alert-error text-sm">{err}</div>}
           <div className="flex justify-end gap-2">

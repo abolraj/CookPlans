@@ -71,6 +71,21 @@ pub fn update_food(input: UpdateFoodInput, db: State<'_, Db>) -> AppResult<()> {
         "UPDATE foods SET name = ?1, slug = ?2, description = ?3, min_duration = ?4, max_duration = ?5 WHERE id = ?6",
         params![input.name, input.slug, input.description, input.min_duration, input.max_duration, input.id],
     )?;
+
+    // Recompute meals.started_at for all meals using this food
+    let mut mstmt = conn.prepare("SELECT id, deadline_at FROM meals WHERE food_id = ?1")?;
+    let affected: Vec<(i64, i64)> = mstmt
+        .query_map([input.id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(mstmt);
+    for (meal_id, deadline) in affected {
+        let started_at = deadline - input.max_duration;
+        conn.execute(
+            "UPDATE meals SET started_at = ?1 WHERE id = ?2",
+            params![started_at, meal_id],
+        )?;
+    }
+
     Ok(())
 }
 

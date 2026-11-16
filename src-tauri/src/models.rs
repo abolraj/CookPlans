@@ -34,6 +34,7 @@ pub struct Plan {
     pub description: Option<String>,
     pub slug: String,
     pub is_active: bool,
+    pub start_weekday: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -45,6 +46,7 @@ pub struct Meal {
     pub meal_type: String,
     pub deadline_at: i64,
     pub started_at: Option<i64>,
+    pub food_id: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -73,14 +75,6 @@ pub struct FoodStep {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct MealWithPlan {
-    pub plan_meal_id: i64,
-    pub weekday: i64,
-    pub meal: Meal,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ScheduledStep {
     pub food_name: String,
     pub step_name: String,
@@ -89,12 +83,43 @@ pub struct ScheduledStep {
     pub duration: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MealPlanStep {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub start_at: i64,
+    pub end_at: i64,
+    pub duration: i64,
+    pub offset_time: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MealPlanDetails {
+    pub meal: Meal,
+    pub food: Food,
+    pub cook_start_at: i64,
+    pub cook_end_at: i64,
+    pub steps: Vec<MealPlanStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanMealDetail {
+    pub plan_meal_id: i64,
+    pub weekday: i64,
+    pub details: MealPlanDetails,
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CreatePlanInput {
     pub name: String,
     pub description: Option<String>,
     pub slug: String,
+    pub start_weekday: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -104,6 +129,7 @@ pub struct UpdatePlanInput {
     pub name: String,
     pub description: Option<String>,
     pub slug: String,
+    pub start_weekday: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -115,7 +141,7 @@ pub struct CreateMealInput {
     pub description: Option<String>,
     pub meal_type: String,
     pub deadline_at: i64,
-    pub food_ids: Vec<i64>,
+    pub food_id: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,7 +152,7 @@ pub struct UpdateMealInput {
     pub description: Option<String>,
     pub meal_type: String,
     pub deadline_at: i64,
-    pub food_ids: Vec<i64>,
+    pub food_id: i64,
 }
 
 #[derive(Debug, Deserialize)]
@@ -211,6 +237,8 @@ pub struct ImportPlan {
     pub description: Option<String>,
     #[serde(default)]
     pub is_active: bool,
+    #[serde(default)]
+    pub start_weekday: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -222,8 +250,7 @@ pub struct ImportMeal {
     pub description: Option<String>,
     pub meal_type: String,
     pub deadline_at: i64,
-    #[serde(default)]
-    pub food_slugs: Vec<String>,
+    pub food_slug: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

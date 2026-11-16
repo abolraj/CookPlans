@@ -1,19 +1,41 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "../lib/api";
-import type { MealWithPlan, Plan, Food, ScheduledStep } from "../lib/types";
-import { WEEKDAYS, MEAL_EMOJI, minutesToTime, timeToMinutes, minutesToInput } from "../lib/types";
+import type { Plan, Food, PlanMealDetail } from "../lib/types";
+import { FULL_WEEKDAYS, MEAL_EMOJI, minutesToTime, timeToMinutes, minutesToInput } from "../lib/types";
 
-export default function WeekView({ plan }: { plan: Plan }) {
-  const [meals, setMeals] = useState<MealWithPlan[]>([]);
+export default function WeekView({
+  plan,
+  onPlanUpdated,
+  onOpenFood,
+}: {
+  plan: Plan;
+  onPlanUpdated: (p: Plan) => void;
+  onOpenFood: (id: number) => void;
+}) {
+  const [weekDetails, setWeekDetails] = useState<PlanMealDetail[]>([]);
   const [foods, setFoods] = useState<Food[]>([]);
-  const [editing, setEditing] = useState<{ weekday: number; meal?: MealWithPlan } | null>(null);
+  const [focusedDay, setFocusedDay] = useState<number>(() => new Date().getDay());
+  const [editing, setEditing] = useState<{ weekday: number; detail?: PlanMealDetail } | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  });
+
+  const dayOrder = useMemo(() => {
+    const arr: number[] = [];
+    for (let i = 0; i < 7; i++) arr.push((plan.startWeekday + i) % 7);
+    return arr;
+  }, [plan.startWeekday]);
 
   async function refresh() {
     try {
-      const [m, f] = await Promise.all([api.listMealsForPlan(plan.id), api.listFoods()]);
-      setMeals(m);
-      setFoods(f);
+      const [details, fs] = await Promise.all([
+        api.getPlanWeekDetails(plan.id),
+        api.listFoods(),
+      ]);
+      setWeekDetails(details);
+      setFoods(fs);
     } catch (e) {
       setErr(String(e));
     }
@@ -23,63 +45,172 @@ export default function WeekView({ plan }: { plan: Plan }) {
     refresh();
   }, [plan.id]);
 
+  useEffect(() => {
+    const t = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const mealCountByDay = useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const d of weekDetails) m[d.weekday] = (m[d.weekday] ?? 0) + 1;
+    return m;
+  }, [weekDetails]);
+
+  const focusedMeals = weekDetails
+    .filter((d) => d.weekday === focusedDay)
+    .sort((a, b) => a.details.meal.deadlineAt - b.details.meal.deadlineAt);
+
+  const allSteps = focusedMeals.flatMap((m) =>
+    m.details.steps.map((s) => ({
+      ...s,
+      mealName: m.details.meal.name,
+      foodName: m.details.food.name,
+      planMealId: m.planMealId,
+    }))
+  );
+  const nextStep = allSteps
+    .filter((s) => s.startAt > nowMin)
+    .sort((a, b) => a.startAt - b.startAt)[0];
+
   return (
     <div className="space-y-4">
       {err && <div className="alert alert-error text-sm">{err}</div>}
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7 gap-3">
-        {WEEKDAYS.map((day, i) => {
-          const dayMeal = meals.find((m) => m.weekday === i);
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="opacity-60">Week starts on:</span>
+        <select
+          className="select select-sm select-bordered"
+          value={plan.startWeekday}
+          onChange={async (e) => {
+            const val = Number(e.target.value);
+            await api.updatePlan({
+              id: plan.id,
+              name: plan.name,
+              description: plan.description ?? undefined,
+              slug: plan.slug,
+              startWeekday: val,
+            });
+            onPlanUpdated({ ...plan, startWeekday: val });
+          }}
+        >
+          {FULL_WEEKDAYS.map((d, i) => (
+            <option key={i} value={i}>{d}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {dayOrder.map((weekday) => {
+          const count = mealCountByDay[weekday] ?? 0;
+          const isFocused = focusedDay === weekday;
+          const isToday = new Date().getDay() === weekday;
           return (
-            <div key={i} className="flex flex-col gap-2">
-              <div className="text-[11px] uppercase tracking-widest opacity-60 text-center font-semibold">
-                {day}
+            <button
+              key={weekday}
+              onClick={() => setFocusedDay(weekday)}
+              className={`card border-2 p-3 flex flex-col items-center justify-center min-h-[92px] transition ${
+                isFocused
+                  ? "bg-primary/20 border-primary shadow-lg"
+                  : "bg-base-200 border-base-300 hover:border-primary/50"
+              }`}
+            >
+              <div
+                className={`text-xs uppercase tracking-widest font-semibold ${
+                  isFocused ? "text-primary" : "opacity-60"
+                }`}
+              >
+                {FULL_WEEKDAYS[weekday]}
+                {isToday && <span className="ml-1 text-[10px] text-success">●</span>}
               </div>
-              {dayMeal ? (
-                <button
-                  onClick={() => setEditing({ weekday: i, meal: dayMeal })}
-                  className="card bg-base-200 border-2 border-base-300 hover:border-primary text-left transition flex flex-col min-h-[190px] hover:shadow-lg"
-                >
-                  <div className="card-body p-3 flex-1">
-                    <div className="text-2xl leading-none">
-                      {MEAL_EMOJI[dayMeal.meal.mealType] ?? "🍽"}
-                    </div>
-                    <div className="font-semibold text-sm leading-tight mt-1 break-words">
-                      {dayMeal.meal.name}
-                    </div>
-                    <div>
-                      <span className="badge badge-sm badge-ghost capitalize">
-                        {dayMeal.meal.mealType}
-                      </span>
-                    </div>
-                    <div className="text-[11px] opacity-70 mt-auto pt-2 leading-relaxed">
-                      <div>🍽 {minutesToTime(dayMeal.meal.deadlineAt)}</div>
-                      {dayMeal.meal.startedAt != null && (
-                        <div>🔥 {minutesToTime(dayMeal.meal.startedAt)}</div>
-                      )}
-                    </div>
-                  </div>
-                </button>
-              ) : (
-                <button
-                  onClick={() => setEditing({ weekday: i })}
-                  className="card bg-base-200/40 border-2 border-dashed border-base-300 hover:border-primary text-center transition flex flex-col min-h-[190px] hover:bg-base-200/70"
-                >
-                  <div className="flex-1 flex flex-col items-center justify-center gap-1">
-                    <span className="text-3xl opacity-40">+</span>
-                    <span className="text-xs opacity-60">Add Meal</span>
-                  </div>
-                </button>
-              )}
-            </div>
+              <div className={`text-3xl font-bold leading-none mt-1 ${count === 0 ? "opacity-30" : ""}`}>
+                {count}
+              </div>
+              <div className="text-[10px] opacity-50 mt-0.5">
+                {count === 1 ? "meal" : "meals"}
+              </div>
+            </button>
           );
         })}
+      </div>
+
+      <div className="space-y-3 mt-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-bold text-lg">{FULL_WEEKDAYS[focusedDay]}'s meals</h3>
+          <span className="badge badge-ghost">{focusedMeals.length}</span>
+          <div className="flex-1" />
+          <button
+            className="btn btn-primary btn-sm"
+            onClick={() => setEditing({ weekday: focusedDay })}
+          >
+            + Add Meal
+          </button>
+        </div>
+
+        {nextStep && (
+          <div className="card bg-gradient-to-br from-primary/20 to-secondary/10 border border-primary/30">
+            <div className="card-body p-4 flex-row items-center gap-4 flex-wrap">
+              <div className="text-3xl">⏳</div>
+              <div className="flex-1 min-w-[200px]">
+                <div className="text-xs uppercase tracking-wider opacity-70">Next step</div>
+                <div className="font-semibold">
+                  {nextStep.foodName} · {nextStep.name}
+                </div>
+                <div className="text-xs opacity-60 mt-0.5">
+                  at {minutesToTime(nextStep.startAt)} · {nextStep.duration}m
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-xs uppercase tracking-wider opacity-70">in</div>
+                <div className="text-3xl font-mono font-bold tabular-nums">
+                  {(() => {
+                    const total = Math.max(0, Math.floor((nextStep.startAt - nowMin) * 60));
+                    const mm = Math.floor(total / 60);
+                    const ss = total % 60;
+                    return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {focusedMeals.length === 0 && (
+            <div className="card bg-base-200 border-2 border-dashed border-base-300 p-8 text-center">
+              <div className="opacity-60 mb-3">No meals planned for {FULL_WEEKDAYS[focusedDay]}.</div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setEditing({ weekday: focusedDay })}
+              >
+                + Add Meal
+              </button>
+            </div>
+          )}
+          {focusedMeals.map((m) => (
+            <MealRow
+              key={m.planMealId}
+              detail={m}
+              nowMin={nowMin}
+              onOpenFood={onOpenFood}
+              onEdit={() => setEditing({ weekday: focusedDay, detail: m })}
+              onDelete={async () => {
+                if (!confirm(`Delete meal "${m.details.meal.name}"?`)) return;
+                await api.deleteMeal(m.details.meal.id);
+                refresh();
+              }}
+            />
+          ))}
+        </div>
       </div>
 
       {editing && (
         <MealEditor
           plan={plan}
           weekday={editing.weekday}
-          existing={editing.meal}
+          existing={editing.detail}
           foods={foods}
           onClose={() => setEditing(null)}
           onSaved={() => {
@@ -88,6 +219,87 @@ export default function WeekView({ plan }: { plan: Plan }) {
           }}
         />
       )}
+    </div>
+  );
+}
+
+function MealRow({
+  detail,
+  nowMin,
+  onOpenFood,
+  onEdit,
+  onDelete,
+}: {
+  detail: PlanMealDetail;
+  nowMin: number;
+  onOpenFood: (id: number) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { meal, food, cookStartAt, cookEndAt, steps } = detail.details;
+  const currentStep = steps.find((s) => s.startAt <= nowMin && s.endAt > nowMin);
+
+  return (
+    <div className="card bg-base-200 border border-base-300">
+      <div className="card-body p-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-2xl">{MEAL_EMOJI[meal.mealType] ?? "🍽"}</span>
+          <div className="font-semibold">{meal.name}</div>
+          <span className="badge badge-ghost badge-sm capitalize">{meal.mealType}</span>
+          {currentStep && (
+            <span className="badge badge-primary badge-sm">now: {currentStep.name}</span>
+          )}
+          <div className="flex-1" />
+          <button className="btn btn-xs btn-ghost" onClick={onEdit}>
+            Edit
+          </button>
+          <button className="btn btn-xs btn-ghost text-error" onClick={onDelete}>
+            ✕
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs opacity-80 mt-1">
+          <span>🍽 ready {minutesToTime(meal.deadlineAt)}</span>
+          <span>🔥 start {minutesToTime(cookStartAt)}</span>
+          <span>⏱ {food.maxDuration}m</span>
+          <span>·</span>
+          <button
+            className="link link-primary font-medium"
+            onClick={() => onOpenFood(food.id)}
+          >
+            {food.name} ↗
+          </button>
+        </div>
+        {steps.length > 0 && (
+          <div className="flex flex-col gap-1 mt-2">
+            {steps.map((s) => {
+              const isCurrent = s.startAt <= nowMin && s.endAt > nowMin;
+              const isPast = s.endAt <= nowMin;
+              return (
+                <div
+                  key={s.id}
+                  className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${
+                    isCurrent
+                      ? "bg-primary/20 border border-primary/50"
+                      : isPast
+                      ? "opacity-40"
+                      : "bg-base-300/40"
+                  }`}
+                >
+                  <span className="font-mono whitespace-nowrap">
+                    {minutesToTime(s.startAt)}
+                  </span>
+                  <span className="opacity-40">→</span>
+                  <span className="font-mono whitespace-nowrap opacity-70">
+                    {minutesToTime(s.endAt)}
+                  </span>
+                  <span className="flex-1 truncate">{s.name}</span>
+                  <span className="opacity-50 whitespace-nowrap">{s.duration}m</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -102,34 +314,30 @@ function MealEditor({
 }: {
   plan: Plan;
   weekday: number;
-  existing?: MealWithPlan;
+  existing?: PlanMealDetail;
   foods: Food[];
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [name, setName] = useState(existing?.meal.name ?? "");
-  const [desc, setDesc] = useState(existing?.meal.description ?? "");
-  const [type, setType] = useState(existing?.meal.mealType ?? "breakfast");
+  const [name, setName] = useState(existing?.details.meal.name ?? "");
+  const [desc, setDesc] = useState(existing?.details.meal.description ?? "");
+  const [type, setType] = useState(existing?.details.meal.mealType ?? "breakfast");
   const [deadline, setDeadline] = useState(
-    existing ? minutesToInput(existing.meal.deadlineAt) : "08:00"
+    existing ? minutesToInput(existing.details.meal.deadlineAt) : "08:00"
   );
-  const [foodIds, setFoodIds] = useState<number[]>([]);
-  const [schedule, setSchedule] = useState<ScheduledStep[]>([]);
+  const [foodId, setFoodId] = useState<number>(
+    existing?.details.meal.foodId ?? (foods[0]?.id ?? 0)
+  );
   const [err, setErr] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-
-  useEffect(() => {
-    (async () => {
-      if (existing) {
-        const ids = await api.getMealFoodIds(existing.meal.id);
-        setFoodIds(ids);
-      }
-    })();
-  }, [existing?.meal.id]);
 
   async function save() {
     if (!name.trim()) {
       setErr("Name is required");
+      return;
+    }
+    if (!foodId) {
+      setErr("Pick a food — you need at least one food in Foods tab.");
       return;
     }
     setBusy(true);
@@ -137,12 +345,12 @@ function MealEditor({
     try {
       if (existing) {
         await api.updateMeal({
-          mealId: existing.meal.id,
+          mealId: existing.details.meal.id,
           name: name.trim(),
           description: desc.trim() || undefined,
           mealType: type,
           deadlineAt: timeToMinutes(deadline),
-          foodIds,
+          foodId,
         });
       } else {
         await api.createMeal({
@@ -152,7 +360,7 @@ function MealEditor({
           description: desc.trim() || undefined,
           mealType: type,
           deadlineAt: timeToMinutes(deadline),
-          foodIds,
+          foodId,
         });
       }
       onSaved();
@@ -163,33 +371,13 @@ function MealEditor({
     }
   }
 
-  async function remove() {
-    if (!existing) return;
-    if (!confirm("Delete this meal?")) return;
-    await api.deleteMeal(existing.meal.id);
-    onSaved();
-  }
-
-  async function showSchedule() {
-    if (!existing) {
-      setErr("Save first to preview schedule");
-      return;
-    }
-    try {
-      const s = await api.computeMealSchedule(existing.meal.id);
-      setSchedule(s);
-    } catch (e) {
-      setErr(String(e));
-    }
-  }
-
   return (
     <div
       className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
       onClick={onClose}
     >
       <div
-        className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+        className="bg-base-100 rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 space-y-4">
@@ -197,7 +385,7 @@ function MealEditor({
             <span className="text-3xl">{MEAL_EMOJI[type] ?? "🍽"}</span>
             <h2 className="text-xl font-bold">
               {existing ? "Edit Meal" : "New Meal"}{" "}
-              <span className="opacity-50 font-normal">· {WEEKDAYS[weekday]}</span>
+              <span className="opacity-50 font-normal">· {FULL_WEEKDAYS[weekday]}</span>
             </h2>
           </div>
 
@@ -234,6 +422,24 @@ function MealEditor({
               />
             </div>
             <div className="form-control md:col-span-2">
+              <label className="label"><span className="label-text">Food</span></label>
+              {foods.length === 0 ? (
+                <div className="text-sm opacity-60">No foods yet — create one in the Foods tab.</div>
+              ) : (
+                <select
+                  className="select select-bordered w-full"
+                  value={foodId}
+                  onChange={(e) => setFoodId(Number(e.target.value))}
+                >
+                  {foods.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} ({f.maxDuration}m)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="form-control md:col-span-2">
               <label className="label"><span className="label-text">Description</span></label>
               <textarea
                 className="textarea textarea-bordered w-full"
@@ -244,86 +450,10 @@ function MealEditor({
             </div>
           </div>
 
-          <div>
-            <div className="font-semibold mb-2 text-sm">Foods</div>
-            {foods.length === 0 ? (
-              <div className="text-sm opacity-60">No foods yet — add some in Foods tab.</div>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-56 overflow-y-auto p-1">
-                {foods.map((f) => {
-                  const checked = foodIds.includes(f.id);
-                  return (
-                    <label
-                      key={f.id}
-                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition ${
-                        checked
-                          ? "border-primary bg-primary/10"
-                          : "border-base-300 hover:border-base-300/70 bg-base-200/40"
-                      }`}
-                    >
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-sm checkbox-primary"
-                        checked={checked}
-                        onChange={(e) =>
-                          setFoodIds((ids) =>
-                            e.target.checked ? [...ids, f.id] : ids.filter((x) => x !== f.id)
-                          )
-                        }
-                      />
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate">{f.name}</div>
-                        <div className="text-[11px] opacity-60">
-                          {f.minDuration}–{f.maxDuration} min
-                        </div>
-                      </div>
-                    </label>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
           {err && <div className="alert alert-error text-sm">{err}</div>}
 
-          {schedule.length > 0 && (
-            <div>
-              <div className="font-semibold mb-2 text-sm">Schedule preview</div>
-              <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                {schedule.map((s, i) => (
-                  <div
-                    key={i}
-                    className="flex items-center gap-2 p-2 rounded-lg bg-base-200 text-sm"
-                  >
-                    <span className="badge badge-sm badge-ghost whitespace-nowrap">
-                      {minutesToTime(s.notifyAtMinutes)}
-                    </span>
-                    <span className="font-medium">{s.foodName}</span>
-                    <span className="opacity-60">· {s.stepName}</span>
-                    <span className="ml-auto text-xs opacity-60 whitespace-nowrap">
-                      {s.duration}m
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-wrap gap-2 justify-end pt-2">
-            {existing && (
-              <button className="btn btn-error btn-outline btn-sm" onClick={remove}>
-                Delete
-              </button>
-            )}
-            {existing && (
-              <button className="btn btn-ghost btn-sm" onClick={showSchedule}>
-                Preview Schedule
-              </button>
-            )}
-            <div className="flex-1" />
-            <button className="btn btn-ghost btn-sm" onClick={onClose}>
-              Cancel
-            </button>
+          <div className="flex justify-end gap-2">
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary btn-sm" onClick={save} disabled={busy}>
               {busy ? <span className="loading loading-spinner loading-xs" /> : "Save"}
             </button>

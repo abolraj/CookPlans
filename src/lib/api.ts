@@ -1,18 +1,39 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { Plan, Meal, MealWithPlan, Food, FoodStep, ScheduledStep, ImportPayload, ImportResult } from "./types";
+import type {
+  Plan,
+  Meal,
+  Food,
+  FoodStep,
+  ScheduledStep,
+  ImportPayload,
+  ImportResult,
+  PlanMealDetail,
+  MealPlanDetails,
+} from "./types";
 
 export const api = {
   listPlans: () => invoke<Plan[]>("list_plans"),
-  createPlan: (input: { name: string; description?: string; slug: string }) =>
-    invoke<Plan>("create_plan", { input }),
-  updatePlan: (input: { id: number; name: string; description?: string; slug: string }) =>
-    invoke<void>("update_plan", { input }),
+  createPlan: (input: {
+    name: string;
+    description?: string;
+    slug: string;
+    startWeekday: number;
+  }) => invoke<Plan>("create_plan", { input }),
+  updatePlan: (input: {
+    id: number;
+    name: string;
+    description?: string;
+    slug: string;
+    startWeekday: number;
+  }) => invoke<void>("update_plan", { input }),
   deletePlan: (id: number) => invoke<void>("delete_plan", { id }),
   setActivePlan: (id: number) => invoke<void>("set_active_plan", { id }),
 
-  listMealsForPlan: (planId: number) => invoke<MealWithPlan[]>("list_meals_for_plan", { planId }),
+  getPlanWeekDetails: (planId: number) =>
+    invoke<PlanMealDetail[]>("get_plan_week_details", { planId }),
   getMeal: (mealId: number) => invoke<Meal>("get_meal", { mealId }),
-  getMealFoodIds: (mealId: number) => invoke<number[]>("get_meal_food_ids", { mealId }),
+  getMealPlanDetails: (mealId: number) =>
+    invoke<MealPlanDetails>("get_meal_plan_details", { mealId }),
   createMeal: (input: {
     planId: number;
     weekday: number;
@@ -20,7 +41,7 @@ export const api = {
     description?: string;
     mealType: string;
     deadlineAt: number;
-    foodIds: number[];
+    foodId: number;
   }) => invoke<Meal>("create_meal", { input }),
   updateMeal: (input: {
     mealId: number;
@@ -28,7 +49,7 @@ export const api = {
     description?: string;
     mealType: string;
     deadlineAt: number;
-    foodIds: number[];
+    foodId: number;
   }) => invoke<Meal>("update_meal", { input }),
   deleteMeal: (mealId: number) => invoke<void>("delete_meal", { mealId }),
 
@@ -51,7 +72,8 @@ export const api = {
   }) => invoke<void>("update_food", { input }),
   deleteFood: (id: number) => invoke<void>("delete_food", { id }),
 
-  listStepsForFood: (foodId: number) => invoke<FoodStep[]>("list_steps_for_food", { foodId }),
+  listStepsForFood: (foodId: number) =>
+    invoke<FoodStep[]>("list_steps_for_food", { foodId }),
   createStep: (input: {
     foodId: number;
     name: string;
@@ -72,7 +94,9 @@ export const api = {
   }) => invoke<void>("update_step", { input }),
   deleteStep: (id: number) => invoke<void>("delete_step", { id }),
 
-  computeMealSchedule: (mealId: number) => invoke<ScheduledStep[]>("compute_meal_schedule", { mealId }),
+  computeMealSchedule: (mealId: number) =>
+    invoke<ScheduledStep[]>("compute_meal_schedule", { mealId }),
 
-  importData: (payload: ImportPayload) => invoke<ImportResult>("import_data", { payload }),
+  importData: (payload: ImportPayload) =>
+    invoke<ImportResult>("import_data", { payload }),
 };

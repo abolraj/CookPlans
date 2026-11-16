@@ -3,8 +3,9 @@
     {
       "name": "Starter Week",
       "slug": "starter-week",
-      "description": "A friendly starter plan with one meal per day for a whole week.",
-      "isActive": true
+      "description": "A friendly starter plan with several meals per week.",
+      "isActive": true,
+      "startWeekday": 6
     }
   ],
   "foods": [
@@ -80,12 +81,14 @@
     }
   ],
   "meals": [
-    { "planSlug": "starter-week", "weekday": 1, "name": "Eggs on Toast", "mealType": "breakfast", "deadlineAt": 480, "description": "Simple Monday start.", "foodSlugs": ["scrambled-eggs", "buttered-toast"] },
-    { "planSlug": "starter-week", "weekday": 2, "name": "Pasta Tuesday", "mealType": "lunch", "deadlineAt": 780, "foodSlugs": ["spaghetti-pomodoro"] },
-    { "planSlug": "starter-week", "weekday": 3, "name": "Chicken & Rice", "mealType": "dinner", "deadlineAt": 1140, "foodSlugs": ["pan-seared-chicken", "steamed-rice"] },
-    { "planSlug": "starter-week", "weekday": 4, "name": "Pancake Morning", "mealType": "breakfast", "deadlineAt": 480, "foodSlugs": ["pancakes"] },
-    { "planSlug": "starter-week", "weekday": 5, "name": "Friday Pasta", "mealType": "lunch", "deadlineAt": 780, "foodSlugs": ["spaghetti-pomodoro"] },
-    { "planSlug": "starter-week", "weekday": 6, "name": "Saturday Chicken", "mealType": "dinner", "deadlineAt": 1200, "foodSlugs": ["pan-seared-chicken"] },
-    { "planSlug": "starter-week", "weekday": 0, "name": "Sunday Brunch", "mealType": "breakfast", "deadlineAt": 600, "foodSlugs": ["scrambled-eggs", "buttered-toast"] }
+    { "planSlug": "starter-week", "weekday": 1, "name": "Eggs", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "scrambled-eggs" },
+    { "planSlug": "starter-week", "weekday": 1, "name": "Toast", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "buttered-toast" },
+    { "planSlug": "starter-week", "weekday": 2, "name": "Pasta Tuesday", "mealType": "lunch", "deadlineAt": 780, "foodSlug": "spaghetti-pomodoro" },
+    { "planSlug": "starter-week", "weekday": 3, "name": "Chicken", "mealType": "dinner", "deadlineAt": 1140, "foodSlug": "pan-seared-chicken" },
+    { "planSlug": "starter-week", "weekday": 3, "name": "Rice", "mealType": "dinner", "deadlineAt": 1140, "foodSlug": "steamed-rice" },
+    { "planSlug": "starter-week", "weekday": 4, "name": "Pancake Morning", "mealType": "breakfast", "deadlineAt": 480, "foodSlug": "pancakes" },
+    { "planSlug": "starter-week", "weekday": 5, "name": "Friday Pasta", "mealType": "lunch", "deadlineAt": 780, "foodSlug": "spaghetti-pomodoro" },
+    { "planSlug": "starter-week", "weekday": 6, "name": "Saturday Chicken", "mealType": "dinner", "deadlineAt": 1200, "foodSlug": "pan-seared-chicken" },
+    { "planSlug": "starter-week", "weekday": 0, "name": "Sunday Eggs", "mealType": "breakfast", "deadlineAt": 600, "foodSlug": "scrambled-eggs" }
   ]
 }

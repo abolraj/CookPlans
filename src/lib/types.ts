@@ -4,6 +4,7 @@ export interface Plan {
   description: string | null;
   slug: string;
   isActive: boolean;
+  startWeekday: number;
 }
 
 export interface Meal {
@@ -13,12 +14,7 @@ export interface Meal {
   mealType: string;
   deadlineAt: number;
   startedAt: number | null;
-}
-
-export interface MealWithPlan {
-  planMealId: number;
-  weekday: number;
-  meal: Meal;
+  foodId: number;
 }
 
 export interface Food {
@@ -49,6 +45,36 @@ export interface ScheduledStep {
   duration: number;
 }
 
+export interface MealPlanStep {
+  id: number;
+  name: string;
+  description: string | null;
+  startAt: number;
+  endAt: number;
+  duration: number;
+  offsetTime: number;
+}
+
+export interface MealPlanDetails {
+  meal: Meal;
+  food: Food;
+  cookStartAt: number;
+  cookEndAt: number;
+  steps: MealPlanStep[];
+}
+
+export interface PlanMealDetail {
+  planMealId: number;
+  weekday: number;
+  details: MealPlanDetails;
+}
+
+export interface MealWithPlan {
+  planMealId: number;
+  weekday: number;
+  meal: Meal;
+}
+
 export interface ImportStep {
   name: string;
   description?: string;
@@ -72,6 +98,7 @@ export interface ImportPlan {
   slug: string;
   description?: string;
   isActive?: boolean;
+  startWeekday?: number;
 }
 
 export interface ImportMeal {
@@ -81,7 +108,7 @@ export interface ImportMeal {
   description?: string;
   mealType: string;
   deadlineAt: number;
-  foodSlugs?: string[];
+  foodSlug: string;
 }
 
 export interface ImportPayload {
@@ -103,6 +130,7 @@ export interface ImportResult {
 export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
 
 export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const FULL_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 export const MEAL_EMOJI: Record<string, string> = {
   breakfast: "🌅",

@@ -29,8 +29,8 @@ pub fn run_import(conn: &Connection, payload: &ImportPayload) -> AppResult<Impor
             conn.execute("UPDATE plans SET is_active = 0", [])?;
         }
         conn.execute(
-            "INSERT INTO plans (name, description, slug, is_active) VALUES (?1, ?2, ?3, ?4)",
-            params![plan.name, plan.description, plan.slug, if plan.is_active { 1 } else { 0 }],
+            "INSERT INTO plans (name, description, slug, is_active, start_weekday) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![plan.name, plan.description, plan.slug, if plan.is_active { 1 } else { 0 }, plan.start_weekday],
         )?;
         let id = conn.last_insert_rowid();
         plan_ids.insert(plan.slug.clone(), id);
@@ -68,6 +68,11 @@ pub fn run_import(conn: &Connection, payload: &ImportPayload) -> AppResult<Impor
             result.meals_skipped += 1;
             continue;
         };
+        let Some(&food_id) = food_ids.get(&meal.food_slug) else {
+            result.errors.push(format!("Meal '{}' references unknown food '{}'", meal.name, meal.food_slug));
+            result.meals_skipped += 1;
+            continue;
+        };
         if !["breakfast", "lunch", "dinner", "snack"].contains(&meal.meal_type.as_str()) {
             result.errors.push(format!("Meal '{}' has invalid type '{}'", meal.name, meal.meal_type));
             result.meals_skipped += 1;
@@ -78,56 +83,41 @@ pub fn run_import(conn: &Connection, payload: &ImportPayload) -> AppResult<Impor
             result.meals_skipped += 1;
             continue;
         }
-        let existing: Option<i64> = conn
+
+        // Skip exact duplicates by (plan, weekday, name)
+        let dup: Option<i64> = conn
             .query_row(
-                "SELECT id FROM plan_meals WHERE plan_id = ?1 AND weekday = ?2",
-                params![plan_id, meal.weekday],
+                "SELECT m.id FROM plan_meals pm JOIN meals m ON m.id = pm.meal_id
+                 WHERE pm.plan_id = ?1 AND pm.weekday = ?2 AND m.name = ?3",
+                params![plan_id, meal.weekday, meal.name],
                 |r| r.get(0),
             )
             .ok();
-        if existing.is_some() {
+        if dup.is_some() {
             result.errors.push(format!(
-                "Meal '{}' skipped: plan '{}' weekday {} already has a meal",
-                meal.name, meal.plan_slug, meal.weekday
+                "Meal '{}' skipped: already exists on {} of plan '{}'",
+                meal.name, meal.weekday, meal.plan_slug
             ));
             result.meals_skipped += 1;
             continue;
         }
-        let mut meal_food_ids: Vec<i64> = Vec::new();
-        for slug in &meal.food_slugs {
-            match food_ids.get(slug) {
-                Some(&id) => meal_food_ids.push(id),
-                None => result.errors.push(format!("Meal '{}' references unknown food '{}'", meal.name, slug)),
-            }
-        }
-        let max_dur: i64 = if meal_food_ids.is_empty() {
-            0
-        } else {
-            let placeholders = meal_food_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
-            let sql = format!("SELECT COALESCE(MAX(max_duration), 0) FROM foods WHERE id IN ({placeholders})");
-            let params_vec: Vec<Box<dyn rusqlite::ToSql>> = meal_food_ids
-                .iter()
-                .map(|i| Box::new(*i) as Box<dyn rusqlite::ToSql>)
-                .collect();
-            let params_ref: Vec<&dyn rusqlite::ToSql> = params_vec.iter().map(|b| b.as_ref()).collect();
-            conn.query_row(&sql, params_ref.as_slice(), |r| r.get(0))?
-        };
+
+        let max_dur: i64 = conn.query_row(
+            "SELECT COALESCE(max_duration, 0) FROM foods WHERE id = ?1",
+            [food_id],
+            |r| r.get(0),
+        )?;
         let started_at = meal.deadline_at - max_dur;
+
         conn.execute(
-            "INSERT INTO meals (name, description, type, deadline_at, started_at) VALUES (?1, ?2, ?3, ?4, ?5)",
-            params![meal.name, meal.description, meal.meal_type, meal.deadline_at, started_at],
+            "INSERT INTO meals (name, description, type, deadline_at, started_at, food_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![meal.name, meal.description, meal.meal_type, meal.deadline_at, started_at, food_id],
         )?;
         let meal_id = conn.last_insert_rowid();
         conn.execute(
             "INSERT INTO plan_meals (plan_id, meal_id, weekday) VALUES (?1, ?2, ?3)",
             params![plan_id, meal_id, meal.weekday],
         )?;
-        for fid in &meal_food_ids {
-            conn.execute(
-                "INSERT OR IGNORE INTO meal_foods (meal_id, food_id) VALUES (?1, ?2)",
-                params![meal_id, fid],
-            )?;
-        }
         result.meals_created += 1;
     }
 
