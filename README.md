@@ -1,5 +1,7 @@
 # 🍳 CookPlans
 
+![CookPlans](./demos/plans.png)
+
 > Weekly smart cooking planner with step-by-step notifications — so every meal is ready exactly when you want it.
 
 CookPlans is a cross-platform desktop app that helps you plan a week of meals, calculates the exact minute each cooking step should begin, and fires a native notification when it's time. Built with Tauri 2, Rust, and React.
