@@ -1,0 +1,91 @@
+{
+  "plans": [
+    {
+      "name": "Starter Week",
+      "slug": "starter-week",
+      "description": "A friendly starter plan with one meal per day for a whole week.",
+      "isActive": true
+    }
+  ],
+  "foods": [
+    {
+      "name": "Scrambled Eggs",
+      "slug": "scrambled-eggs",
+      "description": "Fluffy scrambled eggs with butter.",
+      "minDuration": 5,
+      "maxDuration": 8,
+      "steps": [
+        { "name": "Crack & whisk", "description": "Crack eggs into a bowl and whisk.", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 },
+        { "name": "Melt butter", "description": "Melt butter in a pan on low heat.", "duration": 1, "minDuration": 1, "maxDuration": 2, "offsetTime": 2 },
+        { "name": "Cook gently", "description": "Stir slowly until just set.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 3 }
+      ]
+    },
+    {
+      "name": "Buttered Toast",
+      "slug": "buttered-toast",
+      "description": "Crispy toast with butter.",
+      "minDuration": 3,
+      "maxDuration": 4,
+      "steps": [
+        { "name": "Toast bread", "description": "Toast until golden.", "duration": 2, "minDuration": 2, "maxDuration": 3, "offsetTime": 0 },
+        { "name": "Butter", "description": "Spread butter while warm.", "duration": 1, "minDuration": 1, "maxDuration": 1, "offsetTime": 3 }
+      ]
+    },
+    {
+      "name": "Pancakes",
+      "slug": "pancakes",
+      "description": "Fluffy pancakes from scratch.",
+      "minDuration": 15,
+      "maxDuration": 20,
+      "steps": [
+        { "name": "Mix batter", "description": "Whisk flour, milk, egg, baking powder.", "duration": 5, "minDuration": 3, "maxDuration": 6, "offsetTime": 0 },
+        { "name": "Rest batter", "description": "Let the batter rest briefly.", "duration": 3, "minDuration": 2, "maxDuration": 5, "offsetTime": 5 },
+        { "name": "Cook pancakes", "description": "Cook each side until golden.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 8 }
+      ]
+    },
+    {
+      "name": "Spaghetti Pomodoro",
+      "slug": "spaghetti-pomodoro",
+      "description": "Simple tomato pasta.",
+      "minDuration": 12,
+      "maxDuration": 15,
+      "steps": [
+        { "name": "Boil water", "description": "Bring salted water to a rolling boil.", "duration": 5, "minDuration": 4, "maxDuration": 7, "offsetTime": 0 },
+        { "name": "Cook pasta", "description": "Cook until al dente.", "duration": 10, "minDuration": 9, "maxDuration": 11, "offsetTime": 5 },
+        { "name": "Toss with sauce", "description": "Combine with warmed tomato sauce.", "duration": 1, "minDuration": 1, "maxDuration": 2, "offsetTime": 15 }
+      ]
+    },
+    {
+      "name": "Pan-Seared Chicken",
+      "slug": "pan-seared-chicken",
+      "description": "Golden chicken breast.",
+      "minDuration": 20,
+      "maxDuration": 25,
+      "steps": [
+        { "name": "Season", "description": "Season with salt and pepper.", "duration": 3, "minDuration": 2, "maxDuration": 4, "offsetTime": 0 },
+        { "name": "Sear", "description": "Sear both sides until golden.", "duration": 10, "minDuration": 8, "maxDuration": 12, "offsetTime": 3 },
+        { "name": "Rest", "description": "Rest before slicing.", "duration": 5, "minDuration": 4, "maxDuration": 6, "offsetTime": 20 }
+      ]
+    },
+    {
+      "name": "Steamed Rice",
+      "slug": "steamed-rice",
+      "description": "Fluffy steamed white rice.",
+      "minDuration": 20,
+      "maxDuration": 25,
+      "steps": [
+        { "name": "Rinse rice", "description": "Rinse until water runs clear.", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 },
+        { "name": "Cook rice", "description": "Simmer covered until tender.", "duration": 20, "minDuration": 18, "maxDuration": 22, "offsetTime": 2 }
+      ]
+    }
+  ],
+  "meals": [
+    { "planSlug": "starter-week", "weekday": 1, "name": "Eggs on Toast", "mealType": "breakfast", "deadlineAt": 480, "description": "Simple Monday start.", "foodSlugs": ["scrambled-eggs", "buttered-toast"] },
+    { "planSlug": "starter-week", "weekday": 2, "name": "Pasta Tuesday", "mealType": "lunch", "deadlineAt": 780, "foodSlugs": ["spaghetti-pomodoro"] },
+    { "planSlug": "starter-week", "weekday": 3, "name": "Chicken & Rice", "mealType": "dinner", "deadlineAt": 1140, "foodSlugs": ["pan-seared-chicken", "steamed-rice"] },
+    { "planSlug": "starter-week", "weekday": 4, "name": "Pancake Morning", "mealType": "breakfast", "deadlineAt": 480, "foodSlugs": ["pancakes"] },
+    { "planSlug": "starter-week", "weekday": 5, "name": "Friday Pasta", "mealType": "lunch", "deadlineAt": 780, "foodSlugs": ["spaghetti-pomodoro"] },
+    { "planSlug": "starter-week", "weekday": 6, "name": "Saturday Chicken", "mealType": "dinner", "deadlineAt": 1200, "foodSlugs": ["pan-seared-chicken"] },
+    { "planSlug": "starter-week", "weekday": 0, "name": "Sunday Brunch", "mealType": "breakfast", "deadlineAt": 600, "foodSlugs": ["scrambled-eggs", "buttered-toast"] }
+  ]
+}

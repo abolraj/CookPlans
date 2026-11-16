@@ -1,20 +1,22 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "cookplans",
+  "productName": "CookPlans",
   "version": "0.1.0",
-  "identifier": "com.abolfazl.cookplans",
+  "identifier": "com.cookplans.app",
   "build": {
-    "beforeDevCommand": "pnpm dev",
+    "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
-    "beforeBuildCommand": "pnpm build",
+    "beforeBuildCommand": "npm run build",
     "frontendDist": "../dist"
   },
   "app": {
     "windows": [
       {
-        "title": "cookplans",
-        "width": 800,
-        "height": 600
+        "title": "CookPlans",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 900,
+        "minHeight": 600
       }
     ],
     "security": {

@@ -1,51 +1,45 @@
 import { useState } from "react";
-import reactLogo from "./assets/react.svg";
-import { invoke } from "@tauri-apps/api/core";
-import "./App.css";
+import PlansView from "./components/PlansView";
+import FoodsView from "./components/FoodsView";
+import ImportView from "./components/ImportView";
 
-function App() {
-  const [greetMsg, setGreetMsg] = useState("");
-  const [name, setName] = useState("");
+type View = "plans" | "foods" | "import";
 
-  async function greet() {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    setGreetMsg(await invoke("greet", { name }));
-  }
+const TABS: { k: View; label: string; icon: string }[] = [
+  { k: "plans", label: "Plans", icon: "📅" },
+  { k: "foods", label: "Foods", icon: "🥘" },
+  { k: "import", label: "Import", icon: "📥" },
+];
 
+export default function App() {
+  const [view, setView] = useState<View>("plans");
   return (
-    <main className="container">
-      <h1>Welcome to Tauri + React</h1>
-
-      <div className="row">
-        <a href="https://vite.dev" target="_blank">
-          <img src="/vite.svg" className="logo vite" alt="Vite logo" />
-        </a>
-        <a href="https://tauri.app" target="_blank">
-          <img src="/tauri.svg" className="logo tauri" alt="Tauri logo" />
-        </a>
-        <a href="https://react.dev" target="_blank">
-          <img src={reactLogo} className="logo react" alt="React logo" />
-        </a>
-      </div>
-      <p>Click on the Tauri, Vite, and React logos to learn more.</p>
-
-      <form
-        className="row"
-        onSubmit={(e) => {
-          e.preventDefault();
-          greet();
-        }}
-      >
-        <input
-          id="greet-input"
-          onChange={(e) => setName(e.currentTarget.value)}
-          placeholder="Enter a name..."
-        />
-        <button type="submit">Greet</button>
-      </form>
-      <p>{greetMsg}</p>
-    </main>
+    <div className="min-h-screen bg-base-100 flex flex-col">
+      <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
+        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center gap-4 md:gap-6">
+          <h1 className="text-lg md:text-xl font-bold whitespace-nowrap">
+            🍳 Cook<span className="text-primary">Plans</span>
+          </h1>
+          <nav className="flex gap-1 flex-1 overflow-x-auto">
+            {TABS.map((t) => (
+              <button
+                key={t.k}
+                onClick={() => setView(t.k)}
+                className={`btn btn-sm btn-ghost ${view === t.k ? "btn-active bg-base-200" : ""}`}
+              >
+                <span className="hidden sm:inline">{t.icon}</span>
+                {t.label}
+              </button>
+            ))}
+          </nav>
+          <span className="text-xs opacity-50 hidden md:inline">v0.1.0</span>
+        </div>
+      </header>
+      <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6">
+        {view === "plans" && <PlansView />}
+        {view === "foods" && <FoodsView />}
+        {view === "import" && <ImportView />}
+      </main>
+    </div>
   );
 }
-
-export default App;
