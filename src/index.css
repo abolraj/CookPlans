@@ -1,10 +1,161 @@
 @import "tailwindcss";
 
+/* ============================================================
+   DaisyUI — register only our two custom themes
+   ============================================================ */
 @plugin "daisyui" {
-  themes: night --default;
+  themes: neobrutalism --default, neobrutalism-dark --prefersdark;
 }
 
-/* Quicksand — default for all languages */
+/* ============================================================
+   Neo Brutalism — light (default)
+   ============================================================ */
+@plugin "daisyui/theme" {
+  name: "neobrutalism";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  /* Base — off-white / stark black text */
+  --color-base-100: #FDF8F5;
+  --color-base-200: #F4F4F0;
+  --color-base-300: #E8E4DF;
+  --color-base-content: #000000;
+
+  /* Primary — bright yellow */
+  --color-primary: #FFDC58;
+  --color-primary-content: #000000;
+
+  /* Secondary — bright cyan */
+  --color-secondary: #00E5FF;
+  --color-secondary-content: #000000;
+
+  /* Accent — hot coral */
+  --color-accent: #FF3366;
+  --color-accent-content: #FFFFFF;
+
+  /* Neutral — stark black */
+  --color-neutral: #000000;
+  --color-neutral-content: #FFFFFF;
+
+  /* Semantic */
+  --color-info: #00B3FF;
+  --color-info-content: #000000;
+  --color-success: #00C853;
+  --color-success-content: #000000;
+  --color-warning: #FFDC58;
+  --color-warning-content: #000000;
+  --color-error: #FF3366;
+  --color-error-content: #FFFFFF;
+
+  /* Neo Brutalism geometry — square corners */
+  --radius-selector: 0rem;
+  --radius-field: 0rem;
+  --radius-box: 0rem;
+}
+
+/* ============================================================
+   Neo Brutalism — dark (auto-applied on prefers-color-scheme)
+   ============================================================ */
+@plugin "daisyui/theme" {
+  name: "neobrutalism-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: #0A0A0A;
+  --color-base-200: #141414;
+  --color-base-300: #1F1F1F;
+  --color-base-content: #FFFFFF;
+
+  --color-primary: #FFDC58;
+  --color-primary-content: #000000;
+
+  --color-secondary: #00E5FF;
+  --color-secondary-content: #000000;
+
+  --color-accent: #FF3366;
+  --color-accent-content: #FFFFFF;
+
+  --color-neutral: #FFFFFF;
+  --color-neutral-content: #000000;
+
+  --color-info: #00B3FF;
+  --color-info-content: #000000;
+  --color-success: #00C853;
+  --color-success-content: #000000;
+  --color-warning: #FFDC58;
+  --color-warning-content: #000000;
+  --color-error: #FF3366;
+  --color-error-content: #FFFFFF;
+
+  --radius-selector: 0rem;
+  --radius-field: 0rem;
+  --radius-box: 0rem;
+}
+
+/* ============================================================
+   Neo Brutalism base — hard borders + zero-blur shadows
+   ============================================================ */
+@layer base {
+  /* Every interactive card, button, input, and modal gets the look */
+  .btn,
+  .card,
+  .input,
+  .select,
+  .textarea,
+  .modal-box,
+  .alert,
+  .badge,
+  .tabs-box,
+  .menu,
+  .dropdown-content {
+    border: 3px solid currentColor;
+    border-radius: 0;
+  }
+
+  .badge {
+    @apply px-2!;
+  }
+  /* Hard shadow on cards and buttons */
+  .card,
+  .modal-box,
+  .btn {
+    box-shadow: 6px 6px 0 #000;
+  }
+
+  /* Press effect — translate down and remove shadow */
+  .btn:active {
+    transform: translate(6px, 6px);
+    box-shadow: 0 0 0 #000;
+  }
+
+  /* Ensure inputs sit inside the aesthetic too */
+  .input,
+  .select,
+  .textarea {
+    box-shadow: 4px 4px 0 #000;
+  }
+
+  /* Dark mode flips the shadow color to white for contrast */
+  .dark .card,
+  .dark .modal-box,
+  .dark .btn {
+    box-shadow: 6px 6px 0 #fff;
+  }
+  .dark .btn:active {
+    box-shadow: 0 0 0 #fff;
+  }
+  .dark .input,
+  .dark .select,
+  .dark .textarea {
+    box-shadow: 4px 4px 0 #fff;
+  }
+}
+
+/* ============================================================
+   Fonts (unchanged — Quicksand / Mikhak)
+   ============================================================ */
 @font-face {
   font-family: 'Quicksand';
   src: url('./assets/fonts/Quicksand-Regular.ttf') format('truetype');
@@ -21,7 +172,6 @@
   font-display: swap;
 }
 
-/* Mikhak — Persian / Arabic */
 @font-face {
   font-family: 'Mikhak';
   src: url('./assets/fonts/Mikhak-Regular.woff2') format('woff2');
@@ -43,11 +193,6 @@ body,
 #root {
   height: 100%;
   margin: 0;
-}
-
-html,
-body,
-#root {
   font-family: 'Quicksand', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
 }
 

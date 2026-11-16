@@ -118,24 +118,21 @@ export default function WeekView({
             <button
               key={weekday}
               onClick={() => setFocusedDay(weekday)}
-              className={`card border-2 p-2 sm:p-3 flex flex-col items-center justify-center min-h-[92px] transition ${
-                isFocused
+              className={`card border-2 p-2 sm:p-3 flex flex-col items-center justify-center min-h-[92px] transition ${isFocused
                   ? "bg-primary/20 border-primary shadow-lg"
                   : "bg-base-200 border-base-300 hover:border-primary/50"
-              }`}
+                }`}
             >
               <div
-                className={`text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-widest font-semibold text-center break-words leading-tight ${
-                  isFocused ? "text-primary" : "opacity-60"
-                }`}
+                className={`text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-widest font-semibold text-center break-words leading-tight ${isFocused ? "text-primary" : "opacity-60"
+                  }`}
               >
                 {weekdayName(weekday)}
                 {isToday && <span className="ms-1 text-[10px] text-success">●</span>}
               </div>
               <div
-                className={`text-3xl font-bold leading-none mt-1 tabular-nums ${
-                  count === 0 ? "opacity-30" : ""
-                }`}
+                className={`text-3xl font-bold leading-none mt-1 tabular-nums ${count === 0 ? "opacity-30" : ""
+                  }`}
                 dir="ltr"
               >
                 {count}
@@ -176,17 +173,19 @@ export default function WeekView({
                 <div className="font-semibold break-words text-base sm:text-lg">
                   {currentStep.foodName} · {currentStep.name}
                 </div>
-                <div dir="ltr" className="w-min mt-1 flex flex-wrap gap-2 items-baseline">
-                  <bdi className="text-lg font-semibold tabular-nums">
-                    {formatTime(currentStep.startAt)}
-                  </bdi>
-                  <span className="opacity-50">→</span>
-                  <bdi className="text-lg font-semibold tabular-nums opacity-80">
-                    {formatTime(currentStep.endAt)}
-                  </bdi>
-                  <bdi className="text-sm opacity-60 tabular-nums">
-                    ({currentStep.duration}m)
-                  </bdi>
+                <div className="rtl:text-right mt-1 flex flex-wrap gap-2 items-baseline">
+                  <span dir="ltr">
+                    <bdi className="text-lg font-semibold tabular-nums">
+                      {formatTime(currentStep.startAt)}
+                    </bdi>
+                    <span className="opacity-50">→</span>
+                    <bdi className="text-lg font-semibold tabular-nums opacity-80">
+                      {formatTime(currentStep.endAt)}
+                    </bdi>
+                    <bdi className="text-sm opacity-60 tabular-nums">
+                      ({currentStep.duration}m)
+                    </bdi>
+                  </span>
                 </div>
               </div>
               <div className="text-end shrink-0">
@@ -353,13 +352,12 @@ function MealRow({
                 <div
                   key={s.id}
                   dir="ltr"
-                  className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${
-                    isCurrent
+                  className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${isCurrent
                       ? "bg-primary/20 border border-primary/50"
                       : isPast
-                      ? "opacity-40"
-                      : "bg-base-300/40"
-                  }`}
+                        ? "opacity-40"
+                        : "bg-base-300/40"
+                    }`}
                 >
                   <bdi dir="ltr" className="font-mono whitespace-nowrap tabular-nums">
                     {formatTime(s.startAt)}
