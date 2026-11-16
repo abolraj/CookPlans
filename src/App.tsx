@@ -5,6 +5,7 @@ import ImportView from "./components/ImportView";
 import FoodDetailView from "./components/FoodDetailView";
 import { isTauri } from "./lib/tauri";
 import { useI18n } from "./lib/i18n";
+import ThemeToggle from "./components/ThemeToggle";
 
 type View = "plans" | "foods" | "import";
 
@@ -25,7 +26,7 @@ export default function App() {
       <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 h-16 flex items-center gap-2 sm:gap-3 md:gap-6">
           <h1 className="text-base sm:text-lg md:text-xl font-bold whitespace-nowrap shrink-0">
-            🍳 <span className="hidden xs:inline">Cook</span>
+            🍳 <span className="hidden sm:inline">Cook</span>
             <span className="text-primary">Plans</span>
           </h1>
           <nav className="flex gap-1 flex-1 min-w-0 overflow-x-auto">
@@ -46,6 +47,8 @@ export default function App() {
               </button>
             ))}
           </nav>
+
+          <ThemeToggle />
 
           <div className="flex items-center gap-1 shrink-0" aria-label={t("common.language")}>
             <button
