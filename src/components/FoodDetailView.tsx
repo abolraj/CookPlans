@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import type { Food, FoodStep } from "../lib/types";
-import { minutesToTime, minutesToInput, timeToMinutes } from "../lib/types";
+import { minutesToInput, timeToMinutes } from "../lib/types";
 import FoodFormModal from "./FoodFormModal";
 import StepFormModal from "./StepFormModal";
+import { useI18n } from "../lib/i18n";
 
 type DurationMode = "normal" | "max" | "min";
 
@@ -14,6 +15,7 @@ export default function FoodDetailView({
   foodId: number;
   onBack: () => void;
 }) {
+  const { t, formatTime } = useI18n();
   const [food, setFood] = useState<Food | null>(null);
   const [steps, setSteps] = useState<FoodStep[]>([]);
   const [mode, setMode] = useState<DurationMode>("normal");
@@ -81,39 +83,42 @@ export default function FoodDetailView({
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <button className="btn btn-sm btn-ghost" onClick={onBack}>
-          ← Foods
+          {t("foodDetail.backToFoods")}
         </button>
       </div>
 
       <div className="card bg-gradient-to-br from-primary/15 to-secondary/10 border border-primary/20">
-        <div className="card-body p-5">
+        <div className="card-body p-5 min-w-0">
           <div className="flex items-start gap-3 flex-wrap">
-            <div className="text-4xl">🥘</div>
+            <div className="text-4xl shrink-0">🥘</div>
             <div className="flex-1 min-w-0">
               <h1 className="text-2xl font-bold break-words">{food.name}</h1>
-              <div className="text-xs uppercase tracking-wider opacity-50">{food.slug}</div>
+              <div className="text-xs uppercase tracking-wider opacity-50 break-all">
+                {food.slug}
+              </div>
               {food.description && (
-                <p className="text-sm opacity-70 mt-2">{food.description}</p>
+                <p className="text-sm opacity-70 mt-2 break-words">{food.description}</p>
               )}
               <div className="flex flex-wrap gap-2 mt-2">
                 <span className="badge badge-primary badge-outline">
-                  {food.minDuration}–{food.maxDuration} min
+                  <bdi dir="ltr" className="tabular-nums">{food.minDuration}–{food.maxDuration}</bdi>{" "}
+                  {t("units.min")}
                 </span>
               </div>
             </div>
-            <div className="flex gap-1">
+            <div className="flex gap-1 shrink-0">
               <button className="btn btn-sm btn-ghost" onClick={() => setEditingFood(true)}>
-                Edit
+                {t("common.edit")}
               </button>
               <button
                 className="btn btn-sm btn-error btn-outline"
                 onClick={async () => {
-                  if (!confirm("Delete this food and all its steps?")) return;
+                  if (!confirm(t("foodDetail.deleteFoodConfirm"))) return;
                   await api.deleteFood(food.id);
                   onBack();
                 }}
               >
-                Delete
+                {t("common.delete")}
               </button>
             </div>
           </div>
@@ -121,31 +126,38 @@ export default function FoodDetailView({
       </div>
 
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="text-lg font-bold">Steps</h2>
+        <h2 className="text-lg font-bold">{t("foodDetail.steps")}</h2>
         <div className="join">
           <button
-            className={`btn btn-sm join-item ${mode === "normal" ? "btn-active btn-primary" : "btn-ghost"}`}
+            className={`btn btn-sm join-item ${
+              mode === "normal" ? "btn-active btn-primary" : "btn-ghost"
+            }`}
             onClick={() => setMode("normal")}
           >
-            Normal
+            {t("foodDetail.normal")}
           </button>
           <button
-            className={`btn btn-sm join-item ${mode === "max" ? "btn-active btn-primary" : "btn-ghost"}`}
+            className={`btn btn-sm join-item ${
+              mode === "max" ? "btn-active btn-primary" : "btn-ghost"
+            }`}
             onClick={() => setMode("max")}
           >
-            Max
+            {t("foodDetail.max")}
           </button>
           <button
-            className={`btn btn-sm join-item ${mode === "min" ? "btn-active btn-primary" : "btn-ghost"}`}
+            className={`btn btn-sm join-item ${
+              mode === "min" ? "btn-active btn-primary" : "btn-ghost"
+            }`}
             onClick={() => setMode("min")}
           >
-            Min
+            {t("foodDetail.min")}
           </button>
         </div>
         <div className="flex items-center gap-1 text-xs">
-          <span className="opacity-60">Preview from</span>
+          <span className="opacity-60">{t("foodDetail.previewFrom")}</span>
           <input
             type="time"
+            dir="ltr"
             className="input input-xs input-bordered"
             value={minutesToInput(previewStart)}
             onChange={(e) => setPreviewStart(timeToMinutes(e.target.value))}
@@ -153,12 +165,14 @@ export default function FoodDetailView({
         </div>
         <div className="flex-1" />
         <button className="btn btn-sm btn-primary" onClick={() => setStepModal({})}>
-          + Add Step
+          {t("foodDetail.addStep")}
         </button>
       </div>
 
       {steps.length === 0 && (
-        <div className="card bg-base-200 p-6 text-center opacity-60">No steps yet.</div>
+        <div className="card bg-base-200 p-6 text-center opacity-60">
+          {t("foodDetail.noSteps")}
+        </div>
       )}
 
       <div className="flex flex-col gap-2">
@@ -173,18 +187,25 @@ export default function FoodDetailView({
                 : "bg-base-200 border-base-300"
             }`}
           >
-            <div className="card-body p-4">
+            <div className="card-body p-4 min-w-0">
               <div className="flex items-center gap-2 flex-wrap">
-                <div className="font-semibold">{s.name}</div>
-                {s.isCurrent && <span className="badge badge-primary badge-sm">Now</span>}
+                <div className="font-semibold break-words min-w-0">{s.name}</div>
+                {s.isCurrent && (
+                  <span className="badge badge-primary badge-sm shrink-0">
+                    {t("common.now")}
+                  </span>
+                )}
                 <div className="flex-1" />
-                <button className="btn btn-xs btn-ghost" onClick={() => setStepModal({ step: s })}>
-                  Edit
+                <button
+                  className="btn btn-xs btn-ghost shrink-0"
+                  onClick={() => setStepModal({ step: s })}
+                >
+                  {t("common.edit")}
                 </button>
                 <button
-                  className="btn btn-xs btn-ghost text-error"
+                  className="btn btn-xs btn-ghost text-error shrink-0"
                   onClick={async () => {
-                    if (!confirm("Delete this step?")) return;
+                    if (!confirm(t("foodDetail.deleteStepConfirm"))) return;
                     await api.deleteStep(s.id);
                     reloadSteps();
                   }}
@@ -193,11 +214,23 @@ export default function FoodDetailView({
                 </button>
               </div>
               <div className="text-xs opacity-70 flex flex-wrap gap-x-4 gap-y-1 mt-1">
-                <span>🕐 {minutesToTime(s.startAt)} → {minutesToTime(s.endAt)}</span>
-                <span>⏱ {s.dur} min</span>
-                <span>offset {s.offsetTime}m</span>
+                <span className="flex items-center gap-1 whitespace-nowrap">
+                  🕐
+                  <bdi dir="ltr" className="tabular-nums">{formatTime(s.startAt)}</bdi>
+                  <span className="opacity-50">→</span>
+                  <bdi dir="ltr" className="tabular-nums">{formatTime(s.endAt)}</bdi>
+                </span>
+                <span className="whitespace-nowrap">
+                  ⏱ <bdi dir="ltr" className="tabular-nums">{s.dur}m</bdi>
+                </span>
+                <span className="whitespace-nowrap">
+                  {t("foodDetail.offset", { value: "" })}
+                  <bdi dir="ltr" className="tabular-nums">{s.offsetTime}m</bdi>
+                </span>
               </div>
-              {s.description && <p className="text-sm opacity-70 mt-1">{s.description}</p>}
+              {s.description && (
+                <p className="text-sm opacity-70 mt-1 break-words">{s.description}</p>
+              )}
             </div>
           </div>
         ))}

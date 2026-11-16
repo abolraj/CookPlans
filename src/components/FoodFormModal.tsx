@@ -1,9 +1,12 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import type { Food } from "../lib/types";
+import { useI18n } from "../lib/i18n";
 
 function slugify(s: string) {
-  return s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "food";
+  return (
+    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "food"
+  );
 }
 
 export default function FoodFormModal({
@@ -15,6 +18,7 @@ export default function FoodFormModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const [name, setName] = useState(food?.name ?? "");
   const [desc, setDesc] = useState(food?.description ?? "");
   const [minDur, setMinDur] = useState(food?.minDuration ?? 10);
@@ -25,7 +29,7 @@ export default function FoodFormModal({
 
   async function save() {
     if (!name.trim()) {
-      setErr("Name is required");
+      setErr(t("common.nameRequired"));
       return;
     }
     try {
@@ -65,11 +69,11 @@ export default function FoodFormModal({
         <div className="p-6 space-y-4">
           <h2 className="text-xl font-bold flex items-center gap-2">
             <span className="text-3xl">🥘</span>
-            {isNew ? "New Food" : "Edit Food"}
+            {isNew ? t("foods.newFoodTitle") : t("foods.editFoodTitle")}
           </h2>
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Name</span>
+              <span className="label-text">{t("common.name")}</span>
             </label>
             <input
               className="input input-bordered w-full"
@@ -80,7 +84,7 @@ export default function FoodFormModal({
           </div>
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Description</span>
+              <span className="label-text">{t("common.description")}</span>
             </label>
             <textarea
               className="textarea textarea-bordered w-full"
@@ -92,7 +96,7 @@ export default function FoodFormModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Min duration (m)</span>
+                <span className="label-text">{t("foods.minDuration")}</span>
               </label>
               <input
                 type="number"
@@ -104,7 +108,7 @@ export default function FoodFormModal({
             </div>
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Max duration (m)</span>
+                <span className="label-text">{t("foods.maxDuration")}</span>
               </label>
               <input
                 type="number"
@@ -117,9 +121,11 @@ export default function FoodFormModal({
           </div>
           {err && <div className="alert alert-error text-sm">{err}</div>}
           <div className="flex justify-end gap-2">
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
             <button className="btn btn-primary" onClick={save}>
-              {isNew ? "Create" : "Save"}
+              {isNew ? t("common.create") : t("common.save")}
             </button>
           </div>
         </div>

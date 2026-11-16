@@ -4,41 +4,72 @@ import FoodsView from "./components/FoodsView";
 import ImportView from "./components/ImportView";
 import FoodDetailView from "./components/FoodDetailView";
 import { isTauri } from "./lib/tauri";
+import { useI18n } from "./lib/i18n";
 
 type View = "plans" | "foods" | "import";
-
-const TABS: { k: View; label: string; icon: string }[] = [
-  { k: "plans", label: "Plans", icon: "📅" },
-  { k: "foods", label: "Foods", icon: "🥘" },
-  { k: "import", label: "Import", icon: "📥" },
-];
 
 export default function App() {
   const [view, setView] = useState<View>("plans");
   const [openFoodId, setOpenFoodId] = useState<number | null>(null);
   const inTauri = isTauri();
+  const { t, locale, setLocale } = useI18n();
+
+  const tabs: { k: View; label: string; icon: string }[] = [
+    { k: "plans", label: t("nav.plans"), icon: "📅" },
+    { k: "foods", label: t("nav.foods"), icon: "🥘" },
+    { k: "import", label: t("nav.import"), icon: "📥" },
+  ];
 
   return (
     <div className="min-h-screen bg-base-100 flex flex-col">
       <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
-        <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 flex items-center gap-4 md:gap-6">
-          <h1 className="text-lg md:text-xl font-bold whitespace-nowrap">
-            🍳 Cook<span className="text-primary">Plans</span>
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 h-16 flex items-center gap-2 sm:gap-3 md:gap-6">
+          <h1 className="text-base sm:text-lg md:text-xl font-bold whitespace-nowrap shrink-0">
+            🍳 <span className="hidden xs:inline">Cook</span>
+            <span className="text-primary">Plans</span>
           </h1>
-          <nav className="flex gap-1 flex-1 overflow-x-auto">
-            {TABS.map((t) => (
+          <nav className="flex gap-1 flex-1 min-w-0 overflow-x-auto">
+            {tabs.map((tb) => (
               <button
-                key={t.k}
-                onClick={() => { setOpenFoodId(null); setView(t.k); }}
+                key={tb.k}
+                onClick={() => {
+                  setOpenFoodId(null);
+                  setView(tb.k);
+                }}
                 disabled={!inTauri}
-                className={`btn btn-sm btn-ghost ${view === t.k && openFoodId === null ? "btn-active bg-base-200" : ""}`}
+                className={`btn btn-sm btn-ghost whitespace-nowrap shrink-0 ${
+                  view === tb.k && openFoodId === null ? "btn-active bg-base-200" : ""
+                }`}
               >
-                <span className="hidden sm:inline">{t.icon}</span>
-                {t.label}
+                <span className="hidden sm:inline">{tb.icon}</span>
+                {tb.label}
               </button>
             ))}
           </nav>
-          <span className="text-xs opacity-50 hidden md:inline">v0.1.0</span>
+
+          <div className="flex items-center gap-1 shrink-0" aria-label={t("common.language")}>
+            <button
+              onClick={() => setLocale("en")}
+              className={`btn btn-xs ${locale === "en" ? "btn-primary" : "btn-ghost"}`}
+              title="English"
+            >
+              EN
+            </button>
+            <button
+              onClick={() => setLocale("fa")}
+              className={`btn btn-xs ${locale === "fa" ? "btn-primary" : "btn-ghost"}`}
+              title="فارسی"
+            >
+              فا
+            </button>
+          </div>
+
+          <span
+            className="text-xs opacity-50 hidden md:inline shrink-0 tabular-nums"
+            dir="ltr"
+          >
+            v0.1.0
+          </span>
         </div>
       </header>
 
@@ -60,21 +91,18 @@ export default function App() {
 }
 
 function WebNotice() {
+  const { t } = useI18n();
   return (
     <div className="max-w-2xl mx-auto mt-10">
       <div className="card bg-base-200 border border-base-300 shadow-xl">
         <div className="card-body p-8 space-y-4">
           <div className="flex items-center gap-3">
             <span className="text-4xl">🌐</span>
-            <h2 className="card-title text-2xl">Browser preview mode</h2>
+            <h2 className="card-title text-2xl">{t("web.title")}</h2>
           </div>
-          <p className="opacity-80">
-            You opened the Vite dev server directly. The <b>real app</b> runs inside
-            the Tauri WebView, where the Rust backend, SQLite and native notifications
-            are available.
-          </p>
-          <div className="alert alert-info text-sm">Stop this dev server and run:</div>
-          <pre className="bg-base-300 rounded-lg p-4 text-sm overflow-x-auto">
+          <p className="opacity-80">{t("web.body")}</p>
+          <div className="alert alert-info text-sm">{t("web.stopAndRun")}</div>
+          <pre className="bg-base-300 rounded-lg p-4 text-sm overflow-x-auto" dir="ltr">
             <code>npm run tauri dev</code>
           </pre>
         </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api } from "../lib/api";
 import type { FoodStep } from "../lib/types";
+import { useI18n } from "../lib/i18n";
 
 export default function StepFormModal({
   foodId,
@@ -13,6 +14,7 @@ export default function StepFormModal({
   onClose: () => void;
   onSaved: () => void;
 }) {
+  const { t } = useI18n();
   const isNew = !step;
   const [name, setName] = useState(step?.name ?? "");
   const [desc, setDesc] = useState(step?.description ?? "");
@@ -24,7 +26,7 @@ export default function StepFormModal({
 
   async function save() {
     if (!name.trim()) {
-      setErr("Name is required");
+      setErr(t("common.nameRequired"));
       return;
     }
     try {
@@ -65,10 +67,12 @@ export default function StepFormModal({
         onClick={(e) => e.stopPropagation()}
       >
         <div className="p-6 space-y-4">
-          <h2 className="text-xl font-bold">{isNew ? "New Step" : "Edit Step"}</h2>
+          <h2 className="text-xl font-bold">
+            {isNew ? t("step.newStep") : t("step.editStep")}
+          </h2>
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Name</span>
+              <span className="label-text">{t("common.name")}</span>
             </label>
             <input
               className="input input-bordered w-full"
@@ -79,7 +83,7 @@ export default function StepFormModal({
           </div>
           <div className="form-control">
             <label className="label">
-              <span className="label-text">Description</span>
+              <span className="label-text">{t("common.description")}</span>
             </label>
             <textarea
               className="textarea textarea-bordered w-full"
@@ -91,7 +95,7 @@ export default function StepFormModal({
           <div className="grid grid-cols-2 gap-3">
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Offset (m)</span>
+                <span className="label-text">{t("step.offset")}</span>
               </label>
               <input
                 type="number"
@@ -103,7 +107,7 @@ export default function StepFormModal({
             </div>
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Duration (m)</span>
+                <span className="label-text">{t("step.duration")}</span>
               </label>
               <input
                 type="number"
@@ -115,7 +119,7 @@ export default function StepFormModal({
             </div>
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Min duration (m)</span>
+                <span className="label-text">{t("step.minDuration")}</span>
               </label>
               <input
                 type="number"
@@ -127,7 +131,7 @@ export default function StepFormModal({
             </div>
             <div className="form-control">
               <label className="label">
-                <span className="label-text">Max duration (m)</span>
+                <span className="label-text">{t("step.maxDuration")}</span>
               </label>
               <input
                 type="number"
@@ -140,9 +144,11 @@ export default function StepFormModal({
           </div>
           {err && <div className="alert alert-error text-sm">{err}</div>}
           <div className="flex justify-end gap-2">
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
             <button className="btn btn-primary" onClick={save}>
-              {isNew ? "Create" : "Save"}
+              {isNew ? t("common.create") : t("common.save")}
             </button>
           </div>
         </div>
