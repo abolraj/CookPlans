@@ -46,6 +46,7 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
       await api.deletePlan(p.id);
       if (selected?.id === p.id) setSelected(null);
       await refresh();
+      window.dispatchEvent(new Event("cookplans:schedules-changed"));
     } catch (e) {
       setErr(String(e));
     }
@@ -79,6 +80,7 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
               onClick={async () => {
                 await api.setActivePlan(selected.id);
                 setSelected({ ...selected, isActive: true });
+                window.dispatchEvent(new Event("cookplans:schedules-changed"));
               }}
             >
               {t("plans.setActive")}
@@ -181,6 +183,7 @@ export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => 
           onCreated={() => {
             setShowCreate(false);
             refresh();
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
           }}
         />
       )}

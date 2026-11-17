@@ -4,6 +4,7 @@ import {
   isPermissionGranted,
   requestPermission,
 } from "@tauri-apps/plugin-notification";
+import { ensureCookingChannel } from "../lib/notifications";
 
 type PermState = "granted" | "denied" | "prompt";
 
@@ -20,6 +21,7 @@ export default function NotificationPermissionModal({
     (async () => {
       try {
         if (await isPermissionGranted()) {
+          await ensureCookingChannel();
           onClose();
           return;
         }
@@ -41,6 +43,7 @@ export default function NotificationPermissionModal({
     try {
       const result = await requestPermission();
       if (result === "granted") {
+        await ensureCookingChannel();
         onClose();
       } else {
         setState("denied");

@@ -101,6 +101,7 @@ export default function WeekView({
               startWeekday: val,
             });
             onPlanUpdated({ ...plan, startWeekday: val });
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
           }}
         >
           {[6, 0, 1, 2, 3, 4, 5].map((i) => (
@@ -273,6 +274,7 @@ export default function WeekView({
                 if (!ok) return;
                 await api.deleteMeal(m.details.meal.id);
                 refresh();
+                window.dispatchEvent(new Event("cookplans:schedules-changed"));
               }}
             />
           ))}
@@ -289,6 +291,7 @@ export default function WeekView({
           onSaved={() => {
             setEditing(null);
             refresh();
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
           }}
         />
       )}

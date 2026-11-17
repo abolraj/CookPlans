@@ -59,6 +59,7 @@ export default function FoodDetailView({
   async function reloadSteps() {
     try {
       setSteps(await api.listStepsForFood(foodId));
+      window.dispatchEvent(new Event("cookplans:schedules-changed"));
     } catch (e) {
       setErr(String(e));
     }
@@ -123,6 +124,7 @@ export default function FoodDetailView({
                   });
                   if (!ok) return;
                   await api.deleteFood(food.id);
+                  window.dispatchEvent(new Event("cookplans:schedules-changed"));
                   onBack();
                 }}
               >
@@ -262,6 +264,7 @@ export default function FoodDetailView({
               setErr(String(e));
             }
             setEditingFood(false);
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
           }}
         />
       )}
