@@ -8,11 +8,14 @@ importers:
 
   .:
     dependencies:
+      '@saurl/tauri-plugin-safe-area-insets-css-api':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@tauri-apps/api':
         specifier: ^2
         version: 2.12.5
       '@tauri-apps/plugin-notification':
-        specifier: ^2
+        specifier: ~2
         version: 2.8.1
       react:
         specifier: ^18.3.1
@@ -37,7 +40,7 @@ importers:
         specifier: ^4.3.1
         version: 4.7.0(vite@5.4.21(lightningcss@1.33.0))
       daisyui:
-        specifier: ^5.8.1
+        specifier: ^5.0.0
         version: 5.8.1
       tailwindcss:
         specifier: ^4.0.0
@@ -433,6 +436,9 @@ packages:
     resolution: {integrity: sha512-/eMzhxPPUGd5vjHdaNtvxHbblmoe+DyvPnJkZ4uQrDlVq9PQSd8br4pWwamycwRcLoNEzXwFy2mzcGoZTYqU5A==}
     cpu: [x64]
     os: [win32]
+
+  '@saurl/tauri-plugin-safe-area-insets-css-api@0.1.0':
+    resolution: {integrity: sha512-cZbOexV7OSBvgGECrqInA7daoCRLG5wGcUy/zrRIDaqXVKP6THdLWwsC5Ho6UD0lsxr8O4+zd1PPFJwrlHxTYg==}
 
   '@tailwindcss/node@4.3.5':
     resolution: {integrity: sha512-yT53FzV4ke0cr/BguDxhWMpm5MJu1O2muzk+tKw6lKHjODAsYArBbWwFbJiaksfzFv1tpkO9QHGzmfs1hJT66g==}
@@ -1186,6 +1192,10 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.68.4':
     optional: true
+
+  '@saurl/tauri-plugin-safe-area-insets-css-api@0.1.0':
+    dependencies:
+      '@tauri-apps/api': 2.12.5
 
   '@tailwindcss/node@4.3.5':
     dependencies:

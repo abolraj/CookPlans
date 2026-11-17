@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import PlansView from "./components/PlansView";
 import FoodsView from "./components/FoodsView";
 import ImportView from "./components/ImportView";
@@ -6,6 +6,7 @@ import FoodDetailView from "./components/FoodDetailView";
 import { isTauri } from "./lib/tauri";
 import { useI18n } from "./lib/i18n";
 import ThemeToggle from "./components/ThemeToggle";
+import NotificationPermissionModal from "./components/NotificationPermissionModal";
 
 type View = "plans" | "foods" | "import";
 
@@ -28,55 +29,68 @@ export default function App() {
     { k: "import", label: t("nav.import"), icon: "📥" },
   ];
 
+  const [showNotifModal, setShowNotifModal] = useState(false);
+
+  useEffect(() => {
+    if (!inTauri) return;
+    // Let the UI paint first; avoid blocking the first render.
+    const id = setTimeout(() => setShowNotifModal(true), 1500);
+    return () => clearTimeout(id);
+  }, [inTauri]);
+
   return (
-    <div className="min-h-screen bg-base-100 flex flex-col">
+    <div className="min-h-screen bg-base-100 flex flex-col p-1">
       <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
-        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6 h-16 flex items-center gap-2 sm:gap-3 md:gap-6">
-          <h1 className="text-base sm:text-lg md:text-xl font-bold whitespace-nowrap shrink-0">
-            🍳 <span className="hidden sm:inline">Cook</span>
-            <span className="text-primary">Plans</span>
-          </h1>
-          <nav className="flex gap-1 flex-1 min-w-0 overflow-x-auto">
-            {tabs.map((tb) => (
-              <button
-                key={tb.k}
-                onClick={() => goToView(tb.k)}
-                disabled={!inTauri}
-                className={`btn btn-sm btn-ghost whitespace-nowrap shrink-0 ${
-                  view === tb.k && openFoodId === null ? "btn-active bg-base-200" : ""
-                }`}
-              >
-                <span className="hidden sm:inline">{tb.icon}</span>
-                {tb.label}
-              </button>
-            ))}
-          </nav>
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:h-16 py-2 sm:py-0">
+            {/* Brand */}
+            <h1 className="text-base sm:text-lg md:text-xl font-bold whitespace-nowrap shrink-0">
+              🍳 <span className="hidden sm:inline">Cook</span>
+              <span className="text-primary">Plans</span>
+            </h1>
 
-          <ThemeToggle />
+            {/* Right‑side controls — pushed to the end on mobile */}
+            <div className="flex items-center gap-1 ms-auto sm:ms-0">
+              <ThemeToggle />
 
-          <div className="flex items-center gap-1 shrink-0" aria-label={t("common.language")}>
-            <button
-              onClick={() => setLocale("en")}
-              className={`btn btn-xs ${locale === "en" ? "btn-primary" : "btn-ghost"}`}
-              title="English"
-            >
-              EN
-            </button>
-            <button
-              onClick={() => setLocale("fa")}
-              className={`btn btn-xs ${locale === "fa" ? "btn-primary" : "btn-ghost"}`}
-              title="فارسی"
-            >
-              فا
-            </button>
+              <div className="flex items-center gap-1 shrink-0" aria-label={t("common.language")}>
+                <button
+                  onClick={() => setLocale("en")}
+                  className={`btn btn-xs ${locale === "en" ? "btn-primary" : "btn-ghost"}`}
+                  title="English"
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => setLocale("fa")}
+                  className={`btn btn-xs ${locale === "fa" ? "btn-primary" : "btn-ghost"}`}
+                  title="فارسی"
+                >
+                  فا
+                </button>
+              </div>
+
+              <span className="text-xs opacity-50 hidden md:inline shrink-0 tabular-nums" dir="ltr">
+                v0.1.0
+              </span>
+            </div>
+
+            {/* Nav — full row on mobile, inline on ≥sm */}
+            <nav className="order-last w-full sm:order-none sm:w-auto sm:flex-1 flex gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {tabs.map((tb) => (
+                <button
+                  key={tb.k}
+                  onClick={() => goToView(tb.k)}
+                  disabled={!inTauri}
+                  className={`btn btn-sm btn-ghost whitespace-nowrap shrink-0 ${view === tb.k && openFoodId === null ? "btn-active bg-base-200" : ""
+                    }`}
+                >
+                  <span>{tb.icon}</span>      {/* ← always show the icon */}
+                  {tb.label}
+                </button>
+              ))}
+            </nav>
           </div>
-
-          <span
-            className="text-xs opacity-50 hidden md:inline shrink-0 tabular-nums"
-            dir="ltr"
-          >
-            v0.1.0
-          </span>
         </div>
       </header>
 
@@ -87,6 +101,9 @@ export default function App() {
           <FoodDetailView foodId={openFoodId} onBack={() => setOpenFoodId(null)} />
         ) : (
           <>
+            {showNotifModal && (
+              <NotificationPermissionModal onClose={() => setShowNotifModal(false)} />
+            )}
             {view === "plans" && (
               <PlansView key={`plans-${navKey}`} onOpenFood={setOpenFoodId} />
             )}

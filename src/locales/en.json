@@ -1,4 +1,11 @@
 {
+  "notifications": {
+    "title": "Enable cooking reminders",
+    "body": "CookPlans can remind you exactly when each step starts, so nothing burns while you wait.",
+    "rationale": "Android needs your permission before we can send step reminders.",
+    "deniedBody": "Notifications are disabled. To re‑enable, long‑press the CookPlans icon → App info → Notifications → allow all.",
+    "enable": "Enable notifications"
+  },
   "common": {
     "cancel": "Cancel",
     "save": "Save",

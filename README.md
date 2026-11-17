@@ -253,6 +253,49 @@ Locale choice is persisted under `localStorage['cookplans.locale']`.
 
 ---
 
+## 🚀 Getting started
+
+### Prerequisites
+
+- **Node.js** ≥ 18 and **pnpm/npm**
+- **Rust** ≥ 1.77 (`rustup`)
+- **Tauri CLI** v2: `cargo install tauri-cli --version "^2"`
+- Android toolchain (only if building for Android):
+  - Android Studio + SDK (API 24+)
+  - NDK
+  - `ANDROID_HOME` / `NDK_HOME` set
+
+See [Tauri's Android guide](https://tauri.app/start/prerequisites/) for the full setup.
+
+### Install & run (desktop dev)
+
+```bash
+git clone https://github.com/<you>/cookplans.git
+cd cookplans
+pnpm install
+pnpm tauri dev
+```
+
+### Run on Android
+
+```bash
+pnpm tauri android init        # first time only
+pnpm tauri android dev         # dev build on connected device/emulator
+pnpm tauri android build       # release APK/AAB
+```
+
+> ⚠️ **Don't open the Vite dev server directly in a browser** — you'll get a friendly notice, not the app. CookPlans depends on the Tauri bridge for its entire data layer. Always use `pnpm tauri dev`.
+
+### Build for release
+
+```bash
+pnpm tauri build                        # desktop
+pnpm tauri android build --apk          # Android APK
+```
+
+---
+
+
 ## 🛠️ Development tips
 
 - **Rust changes** require the dev server to recompile — first build is slow, incremental is fast.
@@ -284,7 +327,7 @@ Locale choice is persisted under `localStorage['cookplans.locale']`.
 
 ## 📄 License
 
-MIT — see `LICENSE` for details.
+MIT — see [`LICENSE`](./LICENCE) for details.
 
 ---
 
