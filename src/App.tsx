@@ -116,7 +116,7 @@ export default function App() {
   }, [inTauri]);
 
   return (
-    <div className="min-h-screen bg-base-100 flex flex-col p-1">
+    <div className="min-h-screen bg-base-100 flex flex-col p-1 py-0">
       <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
         <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6">
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:h-16 py-2 sm:py-0">

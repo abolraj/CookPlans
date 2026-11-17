@@ -196,6 +196,7 @@ body {
   position: fixed;
 }
 #root {
+  height: 100% !important;
   overflow-y: auto;
 }
 
