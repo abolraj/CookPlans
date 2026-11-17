@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import PlansView from "./components/PlansView";
 import FoodsView from "./components/FoodsView";
 import ImportView from "./components/ImportView";
@@ -7,6 +7,12 @@ import { isTauri } from "./lib/tauri";
 import { useI18n } from "./lib/i18n";
 import ThemeToggle from "./components/ThemeToggle";
 import NotificationPermissionModal from "./components/NotificationPermissionModal";
+import { api } from "./lib/api";
+import {
+  cancelAllReminders,
+  nextWeekdayOccurrence,
+  scheduleStepReminder,
+} from "./lib/notifications";
 
 type View = "plans" | "foods" | "import";
 
@@ -38,6 +44,77 @@ export default function App() {
     return () => clearTimeout(id);
   }, [inTauri]);
 
+  // Keep t() fresh inside the long-lived schedule effect.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
+  // Arm OS-level notifications for the active plan's future cooking steps.
+  // Runs on mount, when the app returns from background, and whenever the
+  // "cookplans:schedules-changed" event fires after meal/step/plan edits.
+  useEffect(() => {
+    if (!inTauri) return;
+    let cancelled = false;
+
+    async function reschedule() {
+      if (cancelled) return;
+      try {
+        const plans = await api.listPlans();
+        const active = plans.find((p) => p.isActive);
+        await cancelAllReminders();
+        if (!active) return;
+        const details = await api.getPlanWeekDetails(active.id);
+        const now = new Date();
+        for (const m of details) {
+          const { meal, food, cookStartAt, steps } = m.details;
+          for (const step of steps) {
+            const fireAt = nextWeekdayOccurrence(
+              m.weekday,
+              cookStartAt + step.offsetTime
+            );
+            if (fireAt <= now) continue;
+            await scheduleStepReminder({
+              fireAt,
+              key: `${meal.id}|${m.weekday}|${step.id}|${fireAt.getTime()}`,
+              title: tRef.current("notificationContent.stepTitle", {
+                stepName: step.name,
+              }),
+              body: tRef.current("notificationContent.stepBody", {
+                foodName: food.name,
+                duration: step.duration,
+              }),
+              largeBody:
+                tRef.current("notificationContent.stepLargeBody", {
+                  stepName: step.name,
+                  foodName: food.name,
+                  mealName: meal.name,
+                  duration: step.duration,
+                }) +
+                (step.description ? `\n\n${step.description}` : ""),
+            });
+          }
+        }
+      } catch (e) {
+        console.warn("[App] reschedule notifications failed", e);
+      }
+    }
+
+    reschedule();
+    const onVis = () => {
+      if (!document.hidden) reschedule();
+    };
+    const onBump = () => reschedule();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("cookplans:schedules-changed", onBump);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("cookplans:schedules-changed", onBump);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inTauri]);
+
   return (
     <div className="min-h-screen bg-base-100 flex flex-col p-1">
       <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
@@ -45,7 +122,7 @@ export default function App() {
           <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:h-16 py-2 sm:py-0">
             {/* Brand */}
             <h1 className="text-base sm:text-lg md:text-xl font-bold whitespace-nowrap shrink-0">
-              🍳 <span className="hidden sm:inline">Cook</span>
+              🍳 <span className="sm:inline">Cook</span>
               <span className="text-primary">Plans</span>
             </h1>
 
@@ -102,7 +179,12 @@ export default function App() {
         ) : (
           <>
             {showNotifModal && (
-              <NotificationPermissionModal onClose={() => setShowNotifModal(false)} />
+              <NotificationPermissionModal
+                onClose={() => {
+                  setShowNotifModal(false);
+                  window.dispatchEvent(new Event("cookplans:schedules-changed"));
+                }}
+              />
             )}
             {view === "plans" && (
               <PlansView key={`plans-${navKey}`} onOpenFood={setOpenFoodId} />
