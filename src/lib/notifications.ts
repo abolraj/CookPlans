@@ -5,6 +5,7 @@ import {
   pending,
   Schedule,
   sendNotification,
+  Visibility,          // ← added
 } from "@tauri-apps/plugin-notification";
 
 const CHANNEL_ID = "cookplans-reminders";
@@ -16,6 +17,7 @@ let channelReady = false;
 /**
  * Ensure the high-importance Android notification channel exists.
  * Importance.High gives us the system default sound + heads-up banner.
+ * Visibility.Public shows content on the lock screen.
  * Safe to call multiple times; it is a no-op after the first success.
  */
 export async function ensureCookingChannel(): Promise<void> {
@@ -26,7 +28,7 @@ export async function ensureCookingChannel(): Promise<void> {
       name: CHANNEL_NAME,
       description: CHANNEL_DESCRIPTION,
       importance: Importance.High,
-      visibility: Importance.High,
+      visibility: Visibility.Public,   // ← fixed: Visibility, not Importance
       vibration: true,
     });
     channelReady = true;
@@ -81,7 +83,10 @@ export async function scheduleStepReminder(p: StepReminderParams): Promise<void>
 export async function cancelAllReminders(): Promise<void> {
   try {
     const armed = await pending();
-    if (armed.length) await cancel(armed);
+    if (armed.length) {
+      // ← fixed: cancel() expects number[] — map to IDs
+      await cancel(armed.map((n) => n.id));
+    }
   } catch (e) {
     console.warn("[notifications] cancelAll failed", e);
   }
