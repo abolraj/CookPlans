@@ -1,5 +1,58 @@
+pluginManagement {
+    repositories {
+        // Runflare
+        maven { url = uri("https://mirror-maven.runflare.com/android/maven2/") }
+        maven { url = uri("https://mirror-maven.runflare.com/maven2/") }
+        maven { url = uri("https://mirror-maven.runflare.com/gradle-plugins/") }
+        // Shecan 
+        maven { url = uri('https://mirror-maven.pkg.shecan.ir/gradle-plugins') }
+        // Myket — highest priority
+        maven { url = uri('https://en-mirror.ir') }
+        maven { url = uri('https://maven.myket.ir') }
+        // Other Iranian mirrors
+        maven { url = uri('https://maven.devneeds.ir') }
+        maven { url = uri('https://gradle.iranrepo.ir') }
+        maven { url = uri('https://gradle.jamko.ir') }
+        maven { url = uri('https://archive.ito.gov.ir/gradle/maven-plugin/') }
+        // Aliyun (China) — important backup
+        maven { url = uri('https://maven.aliyun.com/repository/gradle-plugin') }
+        maven { url = uri('https://maven.aliyun.com/repository/google') }
+        // Official — last resort
+        google()
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
 plugins {
     id 'org.gradle.toolchains.foojay-resolver-convention' version '0.8.0'
+}
+
+dependencyResolutionManagement {
+    repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+    repositories {
+        // Shecan
+        maven { url = uri('https://mirror-maven.pkg.shecan.ir/google') }
+        maven { url = uri('https://mirror-maven.pkg.shecan.ir/central') }
+        maven { url = uri('https://mirror-maven.pkg.shecan.ir/jitpack') }
+
+        maven { url = uri('https://en-mirror.ir') }
+        // Myket — highest priority
+        maven { url = uri('https://maven.myket.ir') }
+        // Other Iranian mirrors
+        maven { url = uri('https://maven.devneeds.ir') }
+        maven { url = uri('https://gradle.iranrepo.ir') }
+        maven { url = uri('https://gradle.jamko.ir') }
+        maven { url = uri('https://archive.ito.gov.ir/gradle/maven-plugin/') }
+        // Aliyun backup
+        maven { url = uri('https://maven.aliyun.com/repository/public') }
+        maven { url = uri('https://maven.aliyun.com/repository/central') }
+        maven { url = uri('https://maven.aliyun.com/repository/google') }
+        // Official
+        google()
+        mavenCentral()
+        maven { url = uri('https://jitpack.io') }
+    }
 }
 
 include ':app'
