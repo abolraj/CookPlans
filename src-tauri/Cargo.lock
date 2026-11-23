@@ -552,7 +552,7 @@ dependencies = [
 
 [[package]]
 name = "cookplans"
-version = "0.1.0"
+version = "1.2.24"
 dependencies = [
  "chrono",
  "rusqlite",
