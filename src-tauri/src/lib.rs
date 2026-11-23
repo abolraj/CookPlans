@@ -1,6 +1,7 @@
 mod commands;
 mod db;
 mod models;
+#[cfg(not(target_os = "android"))]
 mod scheduler;
 mod seed;
 
@@ -13,6 +14,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_safe_area_insets_css::init())
         .plugin(tauri_plugin_alarm::init())
+        .plugin(tauri_plugin_alarm_scheduler::init())
         .setup(|app| {
             let app_data_dir = app
                 .path()
@@ -28,8 +30,12 @@ pub fn run() {
 
             app.manage(db);
 
-            let handle = app.handle().clone();
-            scheduler::start(handle);
+            // Desktop only: on Android, alarms are handled by the alarm-scheduler plugin.
+            #[cfg(not(target_os = "android"))]
+            {
+                let handle = app.handle().clone();
+                scheduler::start(handle);
+            }
 
             Ok(())
         })

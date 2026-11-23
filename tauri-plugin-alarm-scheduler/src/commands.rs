@@ -2,12 +2,12 @@ use tauri::{AppHandle, command, Runtime};
 
 use crate::models::*;
 use crate::Result;
-use crate::AlarmExt;
+use crate::AlarmSchedulerExt;
 
 #[command]
 pub(crate) async fn ping<R: Runtime>(
     app: AppHandle<R>,
     payload: PingRequest,
 ) -> Result<PingResponse> {
-    app.alarm().ping(payload)
+    app.alarm_scheduler().ping(payload)
 }

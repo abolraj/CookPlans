@@ -1,0 +1,18 @@
+[
+  { "id": "f1", "tool": "bash", "args": { "command": "mkdir -p tauri-plugin-alarm/android/src/main/res/drawable-mdpi tauri-plugin-alarm/android/src/main/res/drawable-hdpi tauri-plugin-alarm/android/src/main/res/drawable-xhdpi tauri-plugin-alarm/android/src/main/res/drawable-xxhdpi tauri-plugin-alarm/android/src/main/res/drawable-xxxhdpi" }, "label": "ensure drawable-*dpi folders exist" },
+
+  { "id": "f2", "tool": "bash", "args": { "command": "for d in mdpi hdpi xhdpi xxhdpi xxxhdpi; do cp tauri-plugin-alarm/android/src/main/res/mipmap-$d/pot.png tauri-plugin-alarm/android/src/main/res/drawable-$d/pot.png; done" }, "label": "copy pot.png into drawable-*dpi (creates R.drawable.pot)" },
+
+  { "id": "f3", "tool": "edit", "args": { "path": "tauri-plugin-alarm/android/src/main/java/com/cookplans/alarm/AlarmService.kt", "old_string": "            setImageViewResource(R.id.notif_icon, R.drawable.ic_alarm)", "new_string": "            setImageViewResource(R.id.notif_icon, R.drawable.pot)" }, "label": "custom view: pot instead of ic_alarm" },
+
+  { "id": "f4", "tool": "edit", "args": { "path": "tauri-plugin-alarm/android/src/main/java/com/cookplans/alarm/AlarmService.kt", "old_string": "            ContextCompat.getDrawable(this, R.drawable.ic_alarm)?.toBitmap(128, 128)", "new_string": "            ContextCompat.getDrawable(this, R.drawable.pot)?.toBitmap(128, 128)" }, "label": "large icon: pot instead of ic_alarm" },
+
+  { "id": "f5", "tool": "edit", "args": { "path": "tauri-plugin-alarm/android/src/main/res/layout/notification_cookplans.xml", "old_string": "        android:src=\"@drawable/ic_alarm\"", "new_string": "        android:src=\"@drawable/pot\"" }, "label": "layout ImageView src → pot" },
+
+  { "id": "f6", "tool": "bash", "args": { "command": "ls -la tauri-plugin-alarm/android/src/main/res/drawable-xxxhdpi/" }, "label": "verify pot.png present in drawable-xxxhdpi" },
+
+  { "id": "f7", "tool": "bash", "args": { "command": "grep -rn 'R.drawable.ic_alarm\\|@drawable/ic_alarm' tauri-plugin-alarm/android/src/main/java/ tauri-plugin-alarm/android/src/main/res/layout/ || true" }, "label": "verify only setSmallIcon still uses ic_alarm" },
+
+  { "id": "f8", "tool": "read", "args": { "path": "src-tauri/gen/android/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml" }, "label": "check launcher adaptive icon references" }
+
+]

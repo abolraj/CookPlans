@@ -6,7 +6,7 @@ plugins {
 }
 
 android {
-    namespace = "com.plugin.alarm"
+    namespace = "com.cookplans.alarm"
     compileSdk = 35
 
     defaultConfig {

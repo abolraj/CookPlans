@@ -1,0 +1,9 @@
+[default]
+description = "Default permissions for the alarm-scheduler plugin"
+permissions = [
+    "allow-schedule",
+    "allow-cancel",
+    "allow-cancel-all",
+    "allow-check-permissions",
+    "allow-request-notification-permission",
+]

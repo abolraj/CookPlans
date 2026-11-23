@@ -1,0 +1,601 @@
+### FILES ###
+
+===== androidTest/java/ExampleInstrumentedTest.kt =====
+package com.cookplans.alarm
+
+import androidx.test.platform.app.InstrumentationRegistry
+import androidx.test.ext.junit.runners.AndroidJUnit4
+
+import org.junit.Test
+import org.junit.runner.RunWith
+
+import org.junit.Assert.*
+
+/**
+ * Instrumented test, which will execute on an Android device.
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+@RunWith(AndroidJUnit4::class)
+class ExampleInstrumentedTest {
+    @Test
+    fun useAppContext() {
+        // Context of the app under test.
+        val appContext = InstrumentationRegistry.getInstrumentation().targetContext
+        assertEquals("com.plugin.alarm", appContext.packageName)
+    }
+}
+
+===== main/AndroidManifest.xml =====
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application>
+        <service
+            android:name=".AlarmService"
+            android:exported="false"
+            android:foregroundServiceType="specialUse"
+            android:stopWithTask="false">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="cooking_alarm" />
+        </service>
+        <receiver
+            android:name=".AlarmDismissReceiver"
+            android:exported="false" />
+    </application>
+</manifest>
+
+===== main/java/com/cookplans/alarm/AlarmDismissReceiver.kt =====
+package com.cookplans.alarm
+
+import android.app.NotificationManager
+import android.content.BroadcastReceiver
+import android.content.Context
+import android.content.Intent
+
+class AlarmDismissReceiver : BroadcastReceiver() {
+    override fun onReceive(context: Context, intent: Intent) {
+        val stopIntent = Intent(context, AlarmService::class.java)
+        context.stopService(stopIntent)
+
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(AlarmService.NOTIFICATION_ID)
+    }
+}
+
+===== main/java/com/cookplans/alarm/AlarmPlugin.kt =====
+package com.cookplans.alarm
+
+import android.app.Activity
+import android.app.NotificationManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
+import app.tauri.annotation.Command
+import app.tauri.annotation.InvokeArg
+import app.tauri.annotation.TauriPlugin
+import app.tauri.plugin.Invoke
+import app.tauri.plugin.JSObject
+import app.tauri.plugin.Plugin
+
+@InvokeArg
+class RingArgs {
+    lateinit var title: String
+    lateinit var body: String
+    var stepName: String = ""
+    var foodName: String = ""
+    var dismissLabel: String = "Dismiss"
+}
+
+@InvokeArg
+class EmptyArgs
+
+@TauriPlugin
+class AlarmPlugin(private val activity: Activity) : Plugin(activity) {
+
+    @Command
+    fun ring(invoke: Invoke) {
+        val args = invoke.parseArgs(RingArgs::class.java)
+
+        val intent = Intent(activity, AlarmService::class.java).apply {
+            putExtra(AlarmService.EXTRA_TITLE, args.title)
+            putExtra(AlarmService.EXTRA_BODY, args.body)
+            putExtra(AlarmService.EXTRA_STEP, args.stepName)
+            putExtra(AlarmService.EXTRA_FOOD, args.foodName)
+            putExtra(AlarmService.EXTRA_DISMISS_LABEL, args.dismissLabel)
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            activity.startForegroundService(intent)
+        } else {
+            activity.startService(intent)
+        }
+        invoke.resolve()
+    }
+
+    @Command
+    fun dismiss(invoke: Invoke) {
+        invoke.parseArgs(EmptyArgs::class.java)
+        val stopIntent = Intent(activity, AlarmService::class.java)
+        activity.stopService(stopIntent)
+        val nm = activity.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.cancel(AlarmService.NOTIFICATION_ID)
+        invoke.resolve()
+    }
+
+    @Command
+    fun isAlarmRinging(invoke: Invoke) {
+        invoke.parseArgs(EmptyArgs::class.java)
+        val result = JSObject()
+        result.put("ringing", AlarmService.isRunning)
+        invoke.resolve(result)
+    }
+
+    @Command
+    fun openExactAlarmSettings(invoke: Invoke) {
+        invoke.parseArgs(EmptyArgs::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                val intent = Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (_: Exception) {
+                activity.startActivity(
+                    Intent(Settings.ACTION_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                )
+            }
+        }
+        invoke.resolve()
+    }
+
+    @Command
+    fun openFullScreenIntentSettings(invoke: Invoke) {
+        invoke.parseArgs(EmptyArgs::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            try {
+                val intent = Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                }
+                activity.startActivity(intent)
+            } catch (_: Exception) {
+                activity.startActivity(
+                    Intent(Settings.ACTION_SETTINGS).apply {
+                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    }
+                )
+            }
+        }
+        invoke.resolve()
+    }
+}
+
+===== main/java/com/cookplans/alarm/AlarmService.kt =====
+package com.cookplans.alarm
+
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.app.Service
+import android.content.Context
+import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
+import android.media.RingtoneManager
+import android.os.Build
+import android.os.IBinder
+import android.util.Log
+import android.widget.RemoteViews
+import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
+
+class AlarmService : Service() {
+
+    companion object {
+        @Volatile
+        var isRunning: Boolean = false
+
+        const val CHANNEL_ID = "cookplans-alarm"
+        const val NOTIFICATION_ID = 9101
+        const val EXTRA_TITLE = "title"
+        const val EXTRA_BODY = "body"
+        const val EXTRA_STEP = "step"
+        const val EXTRA_FOOD = "food"
+        const val EXTRA_DISMISS_LABEL = "dismiss_label"
+    }
+
+    private var mediaPlayer: MediaPlayer? = null
+
+    override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Guard against a null-intent restart (the system can relaunch
+        // a killed START_STICKY service with no extras — that would
+        // re-fire a ghost alarm with default text and sound).
+        if (intent == null || intent.getStringExtra(EXTRA_TITLE) == null) {
+            Log.w("AlarmService", "null intent on start — stopping to avoid ghost alarm")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        isRunning = true
+        val title = intent.getStringExtra(EXTRA_TITLE) ?: "CookPlans Alarm"
+        val body = intent.getStringExtra(EXTRA_BODY) ?: "Your cooking step is starting"
+        val stepName = intent.getStringExtra(EXTRA_STEP) ?: ""
+        val foodName = intent.getStringExtra(EXTRA_FOOD) ?: ""
+        val dismissLabel = intent.getStringExtra(EXTRA_DISMISS_LABEL) ?: "Dismiss"
+
+        ensureChannel()
+        startAlarmSound()
+
+        val notification = buildNotification(title, body, stepName, foodName, dismissLabel)
+
+        try {
+            startForeground(NOTIFICATION_ID, notification)
+        } catch (e: Exception) {
+            // On Android 13+ this happens when POST_NOTIFICATIONS is denied.
+            // Fall back to a plain notification; if that also fails, stop
+            // the service so we don't get killed by the 5-second ANR timer.
+            Log.e("AlarmService", "startForeground failed", e)
+            try {
+                val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+                nm.notify(NOTIFICATION_ID, notification)
+            } catch (e2: Exception) {
+                Log.e("AlarmService", "notify also failed", e2)
+            }
+            stopSelf()
+            return START_NOT_STICKY
+        }
+
+        return START_NOT_STICKY
+    }
+
+    private fun ensureChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Cooking alarms",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Full-screen cooking alarms with looping sound"
+                setBypassDnd(true)
+                lockscreenVisibility = NotificationCompat.VISIBILITY_PUBLIC
+                setSound(null, null) // We play our own sound via MediaPlayer
+                enableVibration(true)
+            }
+            val nm = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            nm.createNotificationChannel(channel)
+        }
+    }
+
+    private fun startAlarmSound() {
+        try {
+            val uri = RingtoneManager.getDefaultUri(RingtoneManager.TYPE_ALARM)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE)
+                ?: RingtoneManager.getDefaultUri(RingtoneManager.TYPE_NOTIFICATION)
+
+            mediaPlayer = MediaPlayer().apply {
+                setDataSource(this@AlarmService, uri)
+                setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                isLooping = true
+                prepare()
+                start()
+            }
+        } catch (e: Exception) {
+            Log.e("AlarmService", "alarm sound failed", e)
+        }
+    }
+
+    private fun buildNotification(
+        title: String,
+        body: String,
+        stepName: String,
+        foodName: String,
+        dismissLabel: String,
+    ): Notification {
+        val launchIntent = packageManager.getLaunchIntentForPackage(packageName)?.apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            putExtra("alarm_ringing", true)
+        }
+        val fullScreenPending = PendingIntent.getActivity(
+            this, 0, launchIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val dismissIntent = Intent(this, AlarmDismissReceiver::class.java)
+        val dismissPending = PendingIntent.getBroadcast(
+            this, 1, dismissIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val meta = listOf(foodName, stepName)
+            .filter { it.isNotBlank() }
+            .joinToString(" · ")
+
+        // ─── Custom RemoteViews card ───
+        val customView = RemoteViews(packageName, R.layout.notification_cookplans).apply {
+            setTextViewText(R.id.notif_title, title)
+            setTextViewText(R.id.notif_body, body)
+            setTextViewText(R.id.notif_meta, meta.ifBlank { "CookPlans" })
+            setTextViewText(R.id.notif_dismiss, dismissLabel)
+            setImageViewResource(R.id.notif_icon, R.drawable.pot)
+            setOnClickPendingIntent(R.id.notif_dismiss, dismissPending)
+            setOnClickPendingIntent(R.id.notif_icon, fullScreenPending)
+        }
+
+        val largeIcon = try {
+            ContextCompat.getDrawable(this, R.drawable.pot)?.toBitmap(128, 128)
+        } catch (_: Exception) {
+            null
+        }
+
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_alarm)          // white monochrome silhouette
+            .setLargeIcon(largeIcon)                    // colored pot
+            .setColor(0xFFFFDC58.toInt())
+            .setContentTitle(title)
+            .setContentText(body)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(fullScreenPending)
+            .setFullScreenIntent(fullScreenPending, true)
+            .setStyle(NotificationCompat.DecoratedCustomViewStyle())
+            .setCustomContentView(customView)
+            .setCustomBigContentView(customView)
+            .addAction(
+                android.R.drawable.ic_menu_close_clear_cancel,
+                dismissLabel,
+                dismissPending
+            )
+            .build()
+    }
+
+    override fun onDestroy() {
+        isRunning = false
+        try { mediaPlayer?.stop() } catch (_: Exception) {}
+        try { mediaPlayer?.release() } catch (_: Exception) {}
+        mediaPlayer = null
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            stopForeground(STOP_FOREGROUND_REMOVE)
+        } else {
+            @Suppress("DEPRECATION")
+            stopForeground(true)
+        }
+        super.onDestroy()
+    }
+}
+
+===== main/res/drawable-hdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/drawable/ic_alarm.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- Lid line -->
+    <path
+        android:pathData="M2,12 L22,12"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Pot body -->
+    <path
+        android:pathData="M20,12 L20,20 A2,2 0 0 1 18,22 L6,22 A2,2 0 0 1 4,20 L4,12"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Handle -->
+    <path
+        android:pathData="M4,8 L20,4"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+
+    <!-- Steam curl -->
+    <path
+        android:pathData="M8.86,6.78 L8.41,4.97 A2,2 0 0 1 9.86,2.54 L11.80,2.06 A2,2 0 0 1 14.23,3.52 L14.68,5.32"
+        android:strokeColor="#FFFFFFFF"
+        android:strokeWidth="2"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:fillColor="@android:color/transparent" />
+</vector>
+
+===== main/res/drawable-mdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/drawable-xhdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/drawable-xxhdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/drawable-xxxhdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/layout/notification_cookplans.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="horizontal"
+    android:padding="12dp"
+    android:background="#FFDC58"
+    android:gravity="center_vertical">
+
+    <ImageView
+        android:id="@+id/notif_icon"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:src="@drawable/pot"
+        android:contentDescription="@null" />
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical"
+        android:layout_marginStart="12dp">
+
+        <TextView
+            android:id="@+id/notif_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            android:maxLines="1"
+            android:ellipsize="end"
+            tools:text="Step name" />
+
+        <TextView
+            android:id="@+id/notif_body"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="13sp"
+            android:maxLines="2"
+            android:ellipsize="end"
+            android:layout_marginTop="2dp"
+            tools:text="Food · description" />
+
+        <TextView
+            android:id="@+id/notif_meta"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#000000"
+            android:textSize="11sp"
+            android:alpha="0.7"
+            android:maxLines="1"
+            android:ellipsize="end"
+            android:layout_marginTop="4dp"
+            tools:text="Food · Meal" />
+    </LinearLayout>
+
+    <Button
+        android:id="@+id/notif_dismiss"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Dismiss"
+        android:textColor="#FFFFFF"
+        android:background="#FF3366"
+        android:minWidth="72dp"
+        android:minHeight="40dp"
+        android:paddingHorizontal="12dp"
+        android:textSize="12sp" />
+</LinearLayout>
+
+===== main/res/mipmap-anydpi-v26/pot_round.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/pot_background"/>
+    <foreground android:drawable="@mipmap/pot_foreground"/>
+</adaptive-icon>
+
+===== main/res/mipmap-anydpi-v26/pot.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@mipmap/pot_background"/>
+    <foreground android:drawable="@mipmap/pot_foreground"/>
+</adaptive-icon>
+
+===== main/res/mipmap-hdpi/pot_background.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-hdpi/pot_foreground.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-hdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-hdpi/pot_round.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-mdpi/pot_background.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-mdpi/pot_foreground.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-mdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-mdpi/pot_round.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xhdpi/pot_background.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xhdpi/pot_foreground.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xhdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xhdpi/pot_round.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxhdpi/pot_background.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxhdpi/pot_foreground.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxhdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxhdpi/pot_round.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxxhdpi/pot_background.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxxhdpi/pot_foreground.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxxhdpi/pot.png  [SKIPPED: binary] =====
+
+===== main/res/mipmap-xxxhdpi/pot_round.png  [SKIPPED: binary] =====
+
+===== main/res/playstore/pot.png  [SKIPPED: binary] =====
+
+===== main/res/values/colors.xml =====
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="pot_background">#FFFFFF</color>
+</resources>
+
+===== test/java/ExampleUnitTest.kt =====
+package com.plugin.alarm
+
+import org.junit.Test
+
+import org.junit.Assert.*
+
+/**
+ * Example local unit test, which will execute on the development machine (host).
+ *
+ * See [testing documentation](http://d.android.com/tools/testing).
+ */
+class ExampleUnitTest {
+    @Test
+    fun addition_isCorrect() {
+        assertEquals(4, 2 + 2)
+    }
+}
+
+### SUMMARY ###
+Files included: 11
+Files skipped : 26

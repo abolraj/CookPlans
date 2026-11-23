@@ -1,4 +1,4 @@
-package com.plugin.alarm
+package com.cookplans.alarm
 
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.ext.junit.runners.AndroidJUnit4

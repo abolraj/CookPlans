@@ -1,21 +1,35 @@
-use serde::{ser::Serializer, Serialize};
+use serde::{Serialize, Serializer};
+use std::fmt;
 
-pub type Result<T> = std::result::Result<T, Error>;
-
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug)]
 pub enum Error {
-  #[error(transparent)]
-  Io(#[from] std::io::Error),
-  #[cfg(mobile)]
-  #[error(transparent)]
-  PluginInvoke(#[from] tauri::plugin::mobile::PluginInvokeError),
+    Invoke(String),
+    Tauri(tauri::Error),
+    UnsupportedPlatform,
+}
+
+impl fmt::Display for Error {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Error::Invoke(s) => write!(f, "invoke: {s}"),
+            Error::Tauri(e) => write!(f, "tauri: {e}"),
+            Error::UnsupportedPlatform => write!(f, "not supported on this platform"),
+        }
+    }
+}
+
+impl std::error::Error for Error {}
+
+impl From<tauri::Error> for Error {
+    fn from(e: tauri::Error) -> Self {
+        Error::Tauri(e)
+    }
 }
 
 impl Serialize for Error {
-  fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
-  where
-    S: Serializer,
-  {
-    serializer.serialize_str(self.to_string().as_ref())
-  }
+    fn serialize<S: Serializer>(&self, s: S) -> std::result::Result<S::Ok, S::Error> {
+        s.serialize_str(&self.to_string())
+    }
 }
+
+pub type Result<T> = std::result::Result<T, Error>;

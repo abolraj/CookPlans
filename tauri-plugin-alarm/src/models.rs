@@ -1,13 +1,24 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PingRequest {
-  pub value: Option<String>,
+pub struct AlarmArgs {
+    pub title: String,
+    pub body: String,
+    #[serde(default)]
+    pub step_name: String,
+    #[serde(default)]
+    pub food_name: String,
+    #[serde(default = "default_dismiss_label")]
+    pub dismiss_label: String,
 }
 
-#[derive(Debug, Clone, Default, Deserialize, Serialize)]
+fn default_dismiss_label() -> String {
+    "Dismiss".to_string()
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
-pub struct PingResponse {
-  pub value: Option<String>,
+pub struct RingingStatus {
+    pub ringing: bool,
 }

@@ -1,4 +1,24 @@
 {
+  "alarms": {
+    "toggle": "Alarms",
+    "off": "Off",
+    "on": "On"
+  },
+  "permissions": {
+    "title": "Grant alarm permissions",
+    "body": "CookPlans needs these permissions so alarms sound even when the app is closed.",
+    "notifications": "Notifications",
+    "exactAlarm": "Exact alarms",
+    "fullScreenIntent": "Full-screen intent",
+    "grant": "Grant",
+    "granted": "Granted",
+    "openSettings": "Open settings"
+  },
+  "notificationContent": {
+    "stepTitle": "{{stepName}}",
+    "stepBody": "{{foodName}} · {{duration}}m",
+    "stepLargeBody": "{{foodName}} · {{mealName}} · {{stepName}} ({{duration}}m)"
+  },
   "notifications": {
     "title": "Enable cooking reminders",
     "body": "CookPlans can remind you exactly when each step starts, so nothing burns while you wait.",
@@ -21,7 +41,8 @@
     "loading": "Loading…",
     "now": "Now",
     "add": "Add",
-    "language": "Language"
+    "language": "Language",
+    "dismiss": "Dismiss"
   },
   "units": {
     "min": "min"

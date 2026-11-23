@@ -1,0 +1,23 @@
+### FILES ###
+
+===== default.json =====
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "default capability for CookPlans",
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "core:default",
+    "notification:default",
+    "notification:allow-is-permission-granted",
+    "notification:allow-request-permission",
+    "notification:allow-check-permissions",
+    "safe-area-insets-css:default"
+  ]
+}
+
+### SUMMARY ###
+Files included: 1
+Files skipped : 0

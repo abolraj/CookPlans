@@ -1,0 +1,3944 @@
+### FILES ###
+
+===== App.css =====
+.logo.vite:hover {
+  filter: drop-shadow(0 0 2em #747bff);
+}
+
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafb);
+}
+:root {
+  font-family: Inter, Avenir, Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+
+  color: #0f0f0f;
+  background-color: #f6f6f6;
+
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-text-size-adjust: 100%;
+}
+
+.container {
+  margin: 0;
+  padding-top: 10vh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: 0.75s;
+}
+
+.logo.tauri:hover {
+  filter: drop-shadow(0 0 2em #24c8db);
+}
+
+.row {
+  display: flex;
+  justify-content: center;
+}
+
+a {
+  font-weight: 500;
+  color: #646cff;
+  text-decoration: inherit;
+}
+
+a:hover {
+  color: #535bf2;
+}
+
+h1 {
+  text-align: center;
+}
+
+input,
+button {
+  border-radius: 8px;
+  border: 1px solid transparent;
+  padding: 0.6em 1.2em;
+  font-size: 1em;
+  font-weight: 500;
+  font-family: inherit;
+  color: #0f0f0f;
+  background-color: #ffffff;
+  transition: border-color 0.25s;
+  box-shadow: 0 2px 2px rgba(0, 0, 0, 0.2);
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #396cd8;
+}
+button:active {
+  border-color: #396cd8;
+  background-color: #e8e8e8;
+}
+
+input,
+button {
+  outline: none;
+}
+
+#greet-input {
+  margin-right: 5px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    color: #f6f6f6;
+    background-color: #2f2f2f;
+  }
+
+  a:hover {
+    color: #24c8db;
+  }
+
+  input,
+  button {
+    color: #ffffff;
+    background-color: #0f0f0f98;
+  }
+  button:active {
+    background-color: #0f0f0f69;
+  }
+}
+
+===== App.tsx =====
+import { useState, useEffect, useRef } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import PlansView from "./components/PlansView";
+import FoodsView from "./components/FoodsView";
+import ImportView from "./components/ImportView";
+import FoodDetailView from "./components/FoodDetailView";
+import { isTauri } from "./lib/tauri";
+import { useI18n } from "./lib/i18n";
+import ThemeToggle from "./components/ThemeToggle";
+import PermissionsModal from "./components/PermissionsModal";
+import { api } from "./lib/api";
+import {
+  cancelAllReminders,
+  nextWeekdayOccurrence,
+  scheduleStepReminder,
+} from "./lib/notifications";
+import { alarmScheduler, hashId } from "./lib/alarmScheduler";
+
+type View = "plans" | "foods" | "import";
+
+export default function App() {
+  const [view, setView] = useState<View>("plans");
+  const [openFoodId, setOpenFoodId] = useState<number | null>(null);
+  const [navKey, setNavKey] = useState(0);
+
+  const inTauri = isTauri();
+  const isAndroid =
+    typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+  // The alarm-scheduler plugin only registers on Android; gate the UI there.
+  const showAlarmUI = inTauri && isAndroid;
+
+  const { t, locale, setLocale } = useI18n();
+
+  // ─── Alarm toggle (Android only; default-on for desktop/web Tauri) ───
+  const [alarmsEnabled, setAlarmsEnabled] = useState<boolean>(() => {
+    if (!isAndroid) return true;
+    try {
+      return localStorage.getItem("cookplans.alarmsEnabled") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const [showPermissions, setShowPermissions] = useState(false);
+  const [ringing, setRinging] = useState(false);
+
+  useEffect(() => {
+    if (!isAndroid) return;
+    try {
+      localStorage.setItem(
+        "cookplans.alarmsEnabled",
+        alarmsEnabled ? "1" : "0"
+      );
+    } catch { }
+  }, [alarmsEnabled, isAndroid]);
+
+  // On launch, if user had enabled alarms, re-verify permissions.
+  useEffect(() => {
+    if (!showAlarmUI || !alarmsEnabled) return;
+    (async () => {
+      try {
+        const s = await alarmScheduler.checkPermissions();
+        const all =
+          s.notificationsGranted &&
+          s.exactAlarmGranted &&
+          s.fullScreenIntentGranted;
+        if (!all) setAlarmsEnabled(false);
+      } catch {
+        /* plugin not installed — ignore */
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showAlarmUI]);
+
+  // Poll ringing state so we can surface an in-app dismiss banner.
+  useEffect(() => {
+    if (!showAlarmUI) return;
+    let cancelled = false;
+    const check = async () => {
+      try {
+        const s = await invoke<{ ringing: boolean }>(
+          "plugin:alarm|is_alarm_ringing"
+        );
+        if (!cancelled) setRinging(s.ringing);
+      } catch { }
+    };
+    check();
+    const id = setInterval(check, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [showAlarmUI]);
+
+  const goToView = (v: View) => {
+    setOpenFoodId(null);
+    setView(v);
+    setNavKey((k) => k + 1);
+  };
+
+  const tabs: { k: View; label: string; icon: string }[] = [
+    { k: "plans", label: t("nav.plans"), icon: "📅" },
+    { k: "foods", label: t("nav.foods"), icon: "🥘" },
+    { k: "import", label: t("nav.import"), icon: "📥" },
+  ];
+
+  // Keep t() fresh inside the long-lived schedule effect.
+  const tRef = useRef(t);
+  useEffect(() => {
+    tRef.current = t;
+  });
+
+  // Arm OS-level alarms (Android) / notifications (other Tauri) for the
+  // active plan's future cooking steps. Runs on mount, on return from
+  // background, and whenever "cookplans:schedules-changed" fires.
+  useEffect(() => {
+    if (!inTauri) return;
+    if (isAndroid && !alarmsEnabled) return;
+    let cancelled = false;
+
+    async function reschedule() {
+      if (cancelled) return;
+      try {
+        const plans = await api.listPlans();
+        const active = plans.find((p) => p.isActive);
+
+        // Cancel whatever is armed — rebuild from scratch.
+        if (isAndroid) await alarmScheduler.cancelAll();
+        else await cancelAllReminders();
+
+        if (!active) return;
+
+        const details = await api.getPlanWeekDetails(active.id);
+        const now = new Date();
+
+        for (const m of details) {
+          const { meal, food, cookStartAt, steps } = m.details;
+          for (const step of steps) {
+            const fireAt = nextWeekdayOccurrence(
+              m.weekday,
+              cookStartAt + step.offsetTime
+            );
+            if (fireAt <= now) continue;
+
+            const key = `${meal.id}|${m.weekday}|${step.id}|${fireAt.getTime()}`;
+            const title = tRef.current("notificationContent.stepTitle", {
+              stepName: step.name,
+            });
+            const body = tRef.current("notificationContent.stepBody", {
+              foodName: food.name,
+              duration: step.duration,
+            });
+            const largeBody =
+              tRef.current("notificationContent.stepLargeBody", {
+                stepName: step.name,
+                foodName: food.name,
+                mealName: meal.name,
+                duration: step.duration,
+              }) + (step.description ? `\n\n${step.description}` : "");
+
+            if (isAndroid) {
+              // Full-screen native alarm: AlarmService (from tauri-plugin-alarm)
+              // is started by AlarmManager via PendingIntent.getForegroundService.
+              await alarmScheduler.schedule({
+                id: hashId(key),
+                triggerAtMillis: fireAt.getTime(),
+                title,
+                body,
+                stepName: step.name,
+                foodName: food.name,
+                dismissLabel: tRef.current("common.dismiss"),
+              });
+            } else {
+              // Desktop / other Tauri: keep using the notification plugin.
+              await scheduleStepReminder({ fireAt, key, title, body, largeBody });
+            }
+          }
+        }
+      } catch (e) {
+        console.warn("[App] reschedule notifications failed", e);
+      }
+    }
+
+    reschedule();
+    const onVis = () => {
+      if (!document.hidden) reschedule();
+    };
+    const onBump = () => reschedule();
+    document.addEventListener("visibilitychange", onVis);
+    window.addEventListener("cookplans:schedules-changed", onBump);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("visibilitychange", onVis);
+      window.removeEventListener("cookplans:schedules-changed", onBump);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inTauri, isAndroid, alarmsEnabled]);
+
+  async function toggleAlarms(next: boolean) {
+    if (next) {
+      // Gate on permissions: show the modal, only enable after all granted.
+      setShowPermissions(true);
+      return;
+    }
+    // Turning OFF: cancel everything armed and silence any active alarm.
+    setAlarmsEnabled(false);
+    setRinging(false);
+    try {
+      if (isAndroid) {
+        await alarmScheduler.cancelAll();
+        await invoke("plugin:alarm|dismiss");
+      } else {
+        await cancelAllReminders();
+      }
+    } catch { }
+  }
+
+  return (
+    <div className="relative min-h-screen bg-base-100 flex flex-col p-1 py-0">
+      {/* ─── Ringing banner: shows while the native alarm is sounding ─── */}
+      {ringing && (
+        <div className="bg-error text-error-content px-3 py-2 flex items-center gap-2 text-sm border-b-[3px] border-base-content">
+          <span className="text-lg">🚨</span>
+          <span className="flex-1 font-medium">{t("alarms.ringing")}</span>
+          <button
+            className="btn btn-xs"
+            onClick={async () => {
+              try {
+                await invoke("plugin:alarm|dismiss");
+              } catch { }
+              setRinging(false);
+            }}
+          >
+            {t("common.dismiss")}
+          </button>
+        </div>
+      )}
+
+      <header className="sticky top-0 z-30 backdrop-blur bg-base-100/80 border-b border-base-300">
+        <div className="max-w-7xl mx-auto px-3 sm:px-4 md:px-6">
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3 sm:h-16 py-2 sm:py-0">
+            {/* Brand */}
+            <h1 className="text-base sm:text-lg md:text-xl font-bold whitespace-nowrap shrink-0">
+              🍳 <span className="sm:inline">Cook</span>
+              <span className="text-primary">Plans</span>
+            </h1>
+
+            {/* Right-side controls — pushed to the end on mobile */}
+            <div className="flex items-center gap-1 ms-auto sm:ms-0">
+              <ThemeToggle />
+
+              <div
+                className="flex items-center gap-1 shrink-0"
+                aria-label={t("common.language")}
+              >
+                <button
+                  onClick={() => setLocale("en")}
+                  className={`btn btn-xs ${locale === "en" ? "btn-primary" : "btn-ghost"
+                    }`}
+                  title="English"
+                >
+                  EN
+                </button>
+                <button
+                  onClick={() => setLocale("fa")}
+                  className={`btn btn-xs ${locale === "fa" ? "btn-primary" : "btn-ghost"
+                    }`}
+                  title="فارسی"
+                >
+                  فا
+                </button>
+              </div>
+
+              <span
+                className="text-xs opacity-50 hidden md:inline shrink-0 tabular-nums"
+                dir="ltr"
+              >
+                v0.1.0
+              </span>
+            </div>
+
+            {/* Nav — full row on mobile, inline on ≥sm */}
+            <nav className="order-last w-full sm:order-none sm:w-auto sm:flex-1 flex gap-1 overflow-x-auto pb-1 sm:pb-0">
+              {tabs.map((tb) => (
+                <button
+                  key={tb.k}
+                  onClick={() => goToView(tb.k)}
+                  disabled={!inTauri}
+                  className={`btn btn-sm btn-ghost whitespace-nowrap shrink-0 ${view === tb.k && openFoodId === null
+                    ? "btn-active bg-base-200"
+                    : ""
+                    }`}
+                >
+                  <span>{tb.icon}</span>
+                  {tb.label}
+                </button>
+              ))}
+            </nav>
+          </div>
+        </div>
+      </header>
+
+      <main
+        className={`flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 pb-13 ${showAlarmUI ? "pb-24" : ""
+          }`}
+      >
+        {!inTauri ? (
+          <WebNotice />
+        ) : openFoodId !== null ? (
+          <FoodDetailView
+            foodId={openFoodId}
+            onBack={() => setOpenFoodId(null)}
+          />
+        ) : (
+          <>
+            {view === "plans" && (
+              <PlansView key={`plans-${navKey}`} onOpenFood={setOpenFoodId} />
+            )}
+            {view === "foods" && (
+              <FoodsView key={`foods-${navKey}`} onOpenFood={setOpenFoodId} />
+            )}
+            {view === "import" && <ImportView />}
+          </>
+        )}
+      </main>
+
+      {/* ─── Footer toggle: Android only (alarm-scheduler plugin) ─── */}
+      {showAlarmUI && (
+        <footer className="fixed bottom-[var(--safe-area-inset-bottom,0px)] inset-x-0 z-30 backdrop-blur bg-base-100/90 border-t-[3px] h-13 box-border border-base-content">
+          <div className="max-w-7xl mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <span className="text-lg">🔔</span>
+              <span className="text-sm font-medium">{t("alarms.toggle")}</span>
+              <input
+                type="checkbox"
+                className="toggle toggle-primary toggle-sm"
+                checked={alarmsEnabled}
+                onChange={(e) => toggleAlarms(e.target.checked)}
+              />
+            </label>
+            <span
+              className={`text-xs tabular-nums ${alarmsEnabled ? "text-success" : "opacity-50"
+                }`}
+              dir="ltr"
+            >
+              {alarmsEnabled ? t("alarms.on") : t("alarms.off")}
+            </span>
+          </div>
+        </footer>
+      )}
+
+      {/* ─── Permissions gate: shown only when enabling alarms ─── */}
+      {showPermissions && (
+        <PermissionsModal
+          onAllGranted={() => {
+            setAlarmsEnabled(true);
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
+          }}
+          onClose={async () => {
+            setShowPermissions(false);
+            try {
+              const s = await alarmScheduler.checkPermissions();
+              if (
+                s.notificationsGranted &&
+                s.exactAlarmGranted &&
+                s.fullScreenIntentGranted
+              ) {
+                setAlarmsEnabled(true);
+                window.dispatchEvent(new Event("cookplans:schedules-changed"));
+              }
+            } catch (e) {
+              console.error("[App] post-modal permission check failed", e);
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function WebNotice() {
+  const { t } = useI18n();
+  return (
+    <div className="max-w-2xl mx-auto mt-10">
+      <div className="card bg-base-200 border border-base-300 shadow-xl">
+        <div className="card-body p-8 space-y-4">
+          <div className="flex items-center gap-3">
+            <span className="text-4xl">🌐</span>
+            <h2 className="card-title text-2xl">{t("web.title")}</h2>
+          </div>
+          <p className="opacity-80">{t("web.body")}</p>
+          <div className="alert alert-info text-sm">{t("web.stopAndRun")}</div>
+          <pre
+            className="bg-base-300 rounded-lg p-4 text-sm overflow-x-auto"
+            dir="ltr"
+          >
+            <code>npm run tauri dev</code>
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== assets/fonts/Mikhak-Bold.woff2  [SKIPPED: binary] =====
+
+===== assets/fonts/Mikhak-Regular.woff2  [SKIPPED: binary] =====
+
+===== assets/fonts/Quicksand-Bold.ttf  [SKIPPED: binary] =====
+
+===== assets/fonts/Quicksand-Regular.ttf  [SKIPPED: binary] =====
+
+===== assets/react.svg =====
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" aria-hidden="true" role="img" class="iconify iconify--logos" width="35.93" height="32" preserveAspectRatio="xMidYMid meet" viewBox="0 0 256 228"><path fill="#00D8FF" d="M210.483 73.824a171.49 171.49 0 0 0-8.24-2.597c.465-1.9.893-3.777 1.273-5.621c6.238-30.281 2.16-54.676-11.769-62.708c-13.355-7.7-35.196.329-57.254 19.526a171.23 171.23 0 0 0-6.375 5.848a155.866 155.866 0 0 0-4.241-3.917C100.759 3.829 77.587-4.822 63.673 3.233C50.33 10.957 46.379 33.89 51.995 62.588a170.974 170.974 0 0 0 1.892 8.48c-3.28.932-6.445 1.924-9.474 2.98C17.309 83.498 0 98.307 0 113.668c0 15.865 18.582 31.778 46.812 41.427a145.52 145.52 0 0 0 6.921 2.165a167.467 167.467 0 0 0-2.01 9.138c-5.354 28.2-1.173 50.591 12.134 58.266c13.744 7.926 36.812-.22 59.273-19.855a145.567 145.567 0 0 0 5.342-4.923a168.064 168.064 0 0 0 6.92 6.314c21.758 18.722 43.246 26.282 56.54 18.586c13.731-7.949 18.194-32.003 12.4-61.268a145.016 145.016 0 0 0-1.535-6.842c1.62-.48 3.21-.974 4.76-1.488c29.348-9.723 48.443-25.443 48.443-41.52c0-15.417-17.868-30.326-45.517-39.844Zm-6.365 70.984c-1.4.463-2.836.91-4.3 1.345c-3.24-10.257-7.612-21.163-12.963-32.432c5.106-11 9.31-21.767 12.459-31.957c2.619.758 5.16 1.557 7.61 2.4c23.69 8.156 38.14 20.213 38.14 29.504c0 9.896-15.606 22.743-40.946 31.14Zm-10.514 20.834c2.562 12.94 2.927 24.64 1.23 33.787c-1.524 8.219-4.59 13.698-8.382 15.893c-8.067 4.67-25.32-1.4-43.927-17.412a156.726 156.726 0 0 1-6.437-5.87c7.214-7.889 14.423-17.06 21.459-27.246c12.376-1.098 24.068-2.894 34.671-5.345a134.17 134.17 0 0 1 1.386 6.193ZM87.276 214.515c-7.882 2.783-14.16 2.863-17.955.675c-8.075-4.657-11.432-22.636-6.853-46.752a156.923 156.923 0 0 1 1.869-8.499c10.486 2.32 22.093 3.988 34.498 4.994c7.084 9.967 14.501 19.128 21.976 27.15a134.668 134.668 0 0 1-4.877 4.492c-9.933 8.682-19.886 14.842-28.658 17.94ZM50.35 144.747c-12.483-4.267-22.792-9.812-29.858-15.863c-6.35-5.437-9.555-10.836-9.555-15.216c0-9.322 13.897-21.212 37.076-29.293c2.813-.98 5.757-1.905 8.812-2.773c3.204 10.42 7.406 21.315 12.477 32.332c-5.137 11.18-9.399 22.249-12.634 32.792a134.718 134.718 0 0 1-6.318-1.979Zm12.378-84.26c-4.811-24.587-1.616-43.134 6.425-47.789c8.564-4.958 27.502 2.111 47.463 19.835a144.318 144.318 0 0 1 3.841 3.545c-7.438 7.987-14.787 17.08-21.808 26.988c-12.04 1.116-23.565 2.908-34.161 5.309a160.342 160.342 0 0 1-1.76-7.887Zm110.427 27.268a347.8 347.8 0 0 0-7.785-12.803c8.168 1.033 15.994 2.404 23.343 4.08c-2.206 7.072-4.956 14.465-8.193 22.045a381.151 381.151 0 0 0-7.365-13.322Zm-45.032-43.861c5.044 5.465 10.096 11.566 15.065 18.186a322.04 322.04 0 0 0-30.257-.006c4.974-6.559 10.069-12.652 15.192-18.18ZM82.802 87.83a323.167 323.167 0 0 0-7.227 13.238c-3.184-7.553-5.909-14.98-8.134-22.152c7.304-1.634 15.093-2.97 23.209-3.984a321.524 321.524 0 0 0-7.848 12.897Zm8.081 65.352c-8.385-.936-16.291-2.203-23.593-3.793c2.26-7.3 5.045-14.885 8.298-22.6a321.187 321.187 0 0 0 7.257 13.246c2.594 4.48 5.28 8.868 8.038 13.147Zm37.542 31.03c-5.184-5.592-10.354-11.779-15.403-18.433c4.902.192 9.899.29 14.978.29c5.218 0 10.376-.117 15.453-.343c-4.985 6.774-10.018 12.97-15.028 18.486Zm52.198-57.817c3.422 7.8 6.306 15.345 8.596 22.52c-7.422 1.694-15.436 3.058-23.88 4.071a382.417 382.417 0 0 0 7.859-13.026a347.403 347.403 0 0 0 7.425-13.565Zm-16.898 8.101a358.557 358.557 0 0 1-12.281 19.815a329.4 329.4 0 0 1-23.444.823c-7.967 0-15.716-.248-23.178-.732a310.202 310.202 0 0 1-12.513-19.846h.001a307.41 307.41 0 0 1-10.923-20.627a310.278 310.278 0 0 1 10.89-20.637l-.001.001a307.318 307.318 0 0 1 12.413-19.761c7.613-.576 15.42-.876 23.31-.876H128c7.926 0 15.743.303 23.354.883a329.357 329.357 0 0 1 12.335 19.695a358.489 358.489 0 0 1 11.036 20.54a329.472 329.472 0 0 1-11 20.722Zm22.56-122.124c8.572 4.944 11.906 24.881 6.52 51.026c-.344 1.668-.73 3.367-1.15 5.09c-10.622-2.452-22.155-4.275-34.23-5.408c-7.034-10.017-14.323-19.124-21.64-27.008a160.789 160.789 0 0 1 5.888-5.4c18.9-16.447 36.564-22.941 44.612-18.3ZM128 90.808c12.625 0 22.86 10.235 22.86 22.86s-10.235 22.86-22.86 22.86s-22.86-10.235-22.86-22.86s10.235-22.86 22.86-22.86Z"></path></svg>
+
+===== components/ConfirmDialog.tsx =====
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
+
+export interface ConfirmOpts {
+  message: string;
+  title?: string;
+  confirmLabel?: string;
+  cancelLabel?: string;
+  danger?: boolean;
+}
+
+type ConfirmFn = (opts: ConfirmOpts) => Promise<boolean>;
+
+const Ctx = createContext<ConfirmFn | null>(null);
+
+interface Pending {
+  opts: ConfirmOpts;
+  resolve: (v: boolean) => void;
+}
+
+export function ConfirmProvider({ children }: { children: ReactNode }) {
+  const [pending, setPending] = useState<Pending | null>(null);
+  const dialogRef = useRef<HTMLDialogElement>(null);
+
+  const confirm: ConfirmFn = useCallback((opts) => {
+    return new Promise<boolean>((resolve) => {
+      setPending({ opts, resolve });
+    });
+  }, []);
+
+  const close = useCallback((v: boolean) => {
+    setPending((p) => {
+      p?.resolve(v);
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    const el = dialogRef.current;
+    if (!el) return;
+    if (pending) {
+      if (!el.open) el.showModal();
+    } else {
+      if (el.open) el.close();
+    }
+  }, [pending]);
+
+  return (
+    <Ctx.Provider value={confirm}>
+      {children}
+      <dialog
+        ref={dialogRef}
+        className="modal"
+        onCancel={(e) => {
+          e.preventDefault();
+          close(false);
+        }}
+      >
+        {pending && (
+          <div className="modal-box">
+            {pending.opts.title && (
+              <h3 className="text-lg font-bold mb-2 break-words">
+                {pending.opts.title}
+              </h3>
+            )}
+            <p className="py-2 break-words whitespace-pre-line">
+              {pending.opts.message}
+            </p>
+            <div className="modal-action">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => close(false)}
+              >
+                {pending.opts.cancelLabel ?? "Cancel"}
+              </button>
+              <button
+                type="button"
+                className={`btn ${
+                  pending.opts.danger ? "btn-error" : "btn-primary"
+                }`}
+                onClick={() => close(true)}
+              >
+                {pending.opts.confirmLabel ?? "OK"}
+              </button>
+            </div>
+          </div>
+        )}
+        <form method="dialog" className="modal-backdrop">
+          <button type="button" onClick={() => close(false)}>
+            close
+          </button>
+        </form>
+      </dialog>
+    </Ctx.Provider>
+  );
+}
+
+export function useConfirm() {
+  const ctx = useContext(Ctx);
+  if (!ctx) {
+    throw new Error("useConfirm must be used inside ConfirmProvider");
+  }
+  return ctx;
+}
+
+===== components/FoodDetailView.tsx =====
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
+import type { Food, FoodStep } from "../lib/types";
+import { minutesToInput, timeToMinutes } from "../lib/types";
+import FoodFormModal from "./FoodFormModal";
+import StepFormModal from "./StepFormModal";
+import { useI18n } from "../lib/i18n";
+import { useConfirm } from "./ConfirmDialog";
+
+type DurationMode = "normal" | "max" | "min";
+
+export default function FoodDetailView({
+  foodId,
+  onBack,
+}: {
+  foodId: number;
+  onBack: () => void;
+}) {
+  const { t, formatTime } = useI18n();
+  const askConfirm = useConfirm();
+  const [food, setFood] = useState<Food | null>(null);
+  const [steps, setSteps] = useState<FoodStep[]>([]);
+  const [mode, setMode] = useState<DurationMode>("normal");
+  const [previewStart, setPreviewStart] = useState<number>(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes();
+  });
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  });
+  const [editingFood, setEditingFood] = useState(false);
+  const [stepModal, setStepModal] = useState<{ step?: FoodStep } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const [f, s] = await Promise.all([
+          api.getFood(foodId),
+          api.listStepsForFood(foodId),
+        ]);
+        setFood(f);
+        setSteps(s);
+      } catch (e) {
+        setErr(String(e));
+      }
+    })();
+  }, [foodId]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  async function reloadSteps() {
+    try {
+      setSteps(await api.listStepsForFood(foodId));
+      window.dispatchEvent(new Event("cookplans:schedules-changed"));
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  if (err) return <div className="alert alert-error">{err}</div>;
+  if (!food)
+    return (
+      <div className="p-6">
+        <span className="loading loading-spinner" />
+      </div>
+    );
+
+  const stepWindows = steps.map((s) => {
+    const dur = mode === "max" ? s.maxDuration : mode === "min" ? s.minDuration : s.duration;
+    const startAt = previewStart + s.offsetTime;
+    const endAt = startAt + dur;
+    const isCurrent = nowMin >= startAt && nowMin < endAt;
+    const isPast = nowMin >= endAt;
+    return { ...s, dur, startAt, endAt, isCurrent, isPast };
+  });
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <button className="btn btn-sm btn-ghost" onClick={onBack}>
+          {t("foodDetail.backToFoods")}
+        </button>
+      </div>
+
+      <div className="card bg-gradient-to-br from-primary/15 to-secondary/10 border border-primary/20">
+        <div className="card-body p-5 min-w-0">
+          <div className="flex items-start gap-3 flex-wrap">
+            <div className="text-4xl shrink-0">🥘</div>
+            <div className="flex-1 min-w-0">
+              <h1 className="text-2xl font-bold break-words">{food.name}</h1>
+              <div className="text-xs uppercase tracking-wider opacity-50 break-all">
+                {food.slug}
+              </div>
+              {food.description && (
+                <p className="text-sm opacity-70 mt-2 break-words">{food.description}</p>
+              )}
+              <div className="flex flex-wrap gap-2 mt-2">
+                <span className="badge badge-primary badge-outline">
+                  <bdi dir="ltr" className="tabular-nums">{food.minDuration}–{food.maxDuration}</bdi>{" "}
+                  {t("units.min")}
+                </span>
+              </div>
+            </div>
+            <div className="flex gap-1 shrink-0">
+              <button className="btn btn-sm btn-ghost" onClick={() => setEditingFood(true)}>
+                {t("common.edit")}
+              </button>
+              <button
+                className="btn btn-sm btn-error btn-outline"
+                onClick={async () => {
+                  const ok = await askConfirm({
+                    message: t("foodDetail.deleteFoodConfirm"),
+                    danger: true,
+                    confirmLabel: t("common.delete"),
+                    cancelLabel: t("common.cancel"),
+                  });
+                  if (!ok) return;
+                  await api.deleteFood(food.id);
+                  window.dispatchEvent(new Event("cookplans:schedules-changed"));
+                  onBack();
+                }}
+              >
+                {t("common.delete")}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3">
+        <h2 className="text-lg font-bold">{t("foodDetail.steps")}</h2>
+        <div className="join">
+          <button
+            className={`btn btn-sm join-item ${
+              mode === "normal" ? "btn-active btn-primary" : "btn-ghost"
+            }`}
+            onClick={() => setMode("normal")}
+          >
+            {t("foodDetail.normal")}
+          </button>
+          <button
+            className={`btn btn-sm join-item ${
+              mode === "max" ? "btn-active btn-primary" : "btn-ghost"
+            }`}
+            onClick={() => setMode("max")}
+          >
+            {t("foodDetail.max")}
+          </button>
+          <button
+            className={`btn btn-sm join-item ${
+              mode === "min" ? "btn-active btn-primary" : "btn-ghost"
+            }`}
+            onClick={() => setMode("min")}
+          >
+            {t("foodDetail.min")}
+          </button>
+        </div>
+        <div className="flex items-center gap-1 text-xs">
+          <span className="opacity-60">{t("foodDetail.previewFrom")}</span>
+          <input
+            type="time"
+            dir="ltr"
+            className="input input-xs input-bordered"
+            value={minutesToInput(previewStart)}
+            onChange={(e) => setPreviewStart(timeToMinutes(e.target.value))}
+          />
+        </div>
+        <div className="flex-1" />
+        <button className="btn btn-sm btn-primary" onClick={() => setStepModal({})}>
+          {t("foodDetail.addStep")}
+        </button>
+      </div>
+
+      {steps.length === 0 && (
+        <div className="card bg-base-200 p-6 text-center opacity-60">
+          {t("foodDetail.noSteps")}
+        </div>
+      )}
+
+      <div className="flex flex-col gap-2">
+        {stepWindows.map((s) => (
+          <div
+            key={s.id}
+            className={`card border-2 transition ${
+              s.isCurrent
+                ? "bg-primary/15 border-primary shadow-lg"
+                : s.isPast
+                ? "bg-base-200/40 border-base-300 opacity-50"
+                : "bg-base-200 border-base-300"
+            }`}
+          >
+            <div className="card-body p-4 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap">
+                <div className="font-semibold break-words min-w-0">{s.name}</div>
+                {s.isCurrent && (
+                  <span className="badge badge-primary badge-sm shrink-0">
+                    {t("common.now")}
+                  </span>
+                )}
+                <div className="flex-1" />
+                <button
+                  className="btn btn-xs btn-ghost shrink-0"
+                  onClick={() => setStepModal({ step: s })}
+                >
+                  {t("common.edit")}
+                </button>
+                <button
+                  className="btn btn-xs btn-ghost text-error shrink-0"
+                  onClick={async () => {
+                    const ok = await askConfirm({
+                      message: t("foodDetail.deleteStepConfirm"),
+                      danger: true,
+                      confirmLabel: t("common.delete"),
+                      cancelLabel: t("common.cancel"),
+                    });
+                    if (!ok) return;
+                    await api.deleteStep(s.id);
+                    reloadSteps();
+                  }}
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="text-xs opacity-70 flex flex-wrap gap-x-4 gap-y-1 mt-1">
+                <span className="flex items-center gap-1 whitespace-nowrap">
+                  🕐
+                  <bdi dir="ltr" className="tabular-nums">{formatTime(s.startAt)}</bdi>
+                  <span className="opacity-50">→</span>
+                  <bdi dir="ltr" className="tabular-nums">{formatTime(s.endAt)}</bdi>
+                </span>
+                <span className="whitespace-nowrap">
+                  ⏱ <bdi dir="ltr" className="tabular-nums">{s.dur}m</bdi>
+                </span>
+                <span className="whitespace-nowrap">
+                  {t("foodDetail.offset", { value: "" })}
+                  <bdi dir="ltr" className="tabular-nums">{s.offsetTime}m</bdi>
+                </span>
+              </div>
+              {s.description && (
+                <p className="text-sm opacity-70 mt-1 break-words">{s.description}</p>
+              )}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {editingFood && (
+        <FoodFormModal
+          food={food}
+          onClose={() => setEditingFood(false)}
+          onSaved={async () => {
+            try {
+              const f = await api.getFood(food.id);
+              setFood(f);
+            } catch (e) {
+              setErr(String(e));
+            }
+            setEditingFood(false);
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
+          }}
+        />
+      )}
+      {stepModal && (
+        <StepFormModal
+          foodId={food.id}
+          step={stepModal.step}
+          onClose={() => setStepModal(null)}
+          onSaved={() => {
+            setStepModal(null);
+            reloadSteps();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+===== components/FoodFormModal.tsx =====
+import { useState } from "react";
+import { api } from "../lib/api";
+import type { Food } from "../lib/types";
+import { useI18n } from "../lib/i18n";
+
+function slugify(s: string) {
+  return (
+    s.toLowerCase().trim().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "food"
+  );
+}
+
+export default function FoodFormModal({
+  food,
+  onClose,
+  onSaved,
+}: {
+  food: Food | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t } = useI18n();
+  const [name, setName] = useState(food?.name ?? "");
+  const [desc, setDesc] = useState(food?.description ?? "");
+  const [minDur, setMinDur] = useState(food?.minDuration ?? 10);
+  const [maxDur, setMaxDur] = useState(food?.maxDuration ?? 20);
+  const [err, setErr] = useState<string | null>(null);
+
+  const isNew = !food;
+
+  async function save() {
+    if (!name.trim()) {
+      setErr(t("common.nameRequired"));
+      return;
+    }
+    try {
+      if (isNew) {
+        await api.createFood({
+          name: name.trim(),
+          slug: slugify(name),
+          description: desc.trim() || undefined,
+          minDuration: Number(minDur) || 0,
+          maxDuration: Number(maxDur) || 0,
+        });
+      } else {
+        await api.updateFood({
+          id: food!.id,
+          name: name.trim(),
+          slug: food!.slug,
+          description: desc.trim() || undefined,
+          minDuration: Number(minDur) || 0,
+          maxDuration: Number(maxDur) || 0,
+        });
+      }
+      onSaved();
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 space-y-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <span className="text-3xl">🥘</span>
+            {isNew ? t("foods.newFoodTitle") : t("foods.editFoodTitle")}
+          </h2>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("common.name")}</span>
+            </label>
+            <input
+              className="input input-bordered w-full"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("common.description")}</span>
+            </label>
+            <textarea
+              className="textarea textarea-bordered w-full"
+              rows={2}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("foods.minDuration")}</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="input input-bordered w-full"
+                value={minDur}
+                onChange={(e) => setMinDur(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("foods.maxDuration")}</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="input input-bordered w-full"
+                value={maxDur}
+                onChange={(e) => setMaxDur(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          {err && <div className="alert alert-error text-sm">{err}</div>}
+          <div className="flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn btn-primary" onClick={save}>
+              {isNew ? t("common.create") : t("common.save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== components/FoodsView.tsx =====
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
+import type { Food } from "../lib/types";
+import FoodFormModal from "./FoodFormModal";
+import { useI18n } from "../lib/i18n";
+
+export default function FoodsView({ onOpenFood }: { onOpenFood: (id: number) => void }) {
+  const { t } = useI18n();
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [creating, setCreating] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      setFoods(await api.listFoods());
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-bold">{t("foods.title")}</h1>
+        <div className="flex-1" />
+        <button className="btn btn-primary btn-sm" onClick={() => setCreating(true)}>
+          {t("foods.newFood")}
+        </button>
+      </div>
+
+      {err && <div className="alert alert-error text-sm">{err}</div>}
+
+      {foods.length === 0 ? (
+        <div className="card bg-base-200 p-8 text-center opacity-70">{t("foods.empty")}</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {foods.map((f) => (
+            <button
+              key={f.id}
+              onClick={() => onOpenFood(f.id)}
+              className="card bg-base-200 border-2 border-base-300 hover:border-primary transition text-start w-full h-full flex flex-col hover:-translate-y-0.5 hover:shadow-xl"
+            >
+              <div className="card-body p-4 min-w-0 flex-1">
+                <div className="flex items-start gap-2">
+                  <div className="text-3xl shrink-0">🥘</div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-base leading-tight break-words">
+                      {f.name}
+                    </h3>
+                    <div className="text-[11px] uppercase tracking-wider opacity-50 mt-0.5 break-all">
+                      {f.slug}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1 mt-2">
+                  <span className="badge badge-sm badge-ghost">
+                    ⏱ <bdi dir="ltr" className="tabular-nums">{f.minDuration}–{f.maxDuration}</bdi>{" "}
+                    {t("units.min")}
+                  </span>
+                </div>
+                {f.description && (
+                  <p className="text-sm opacity-70 mt-2 leading-snug break-words">
+                    {f.description}
+                  </p>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {creating && (
+        <FoodFormModal
+          food={null}
+          onClose={() => setCreating(false)}
+          onSaved={() => {
+            setCreating(false);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+===== components/ImportView.tsx =====
+import { useMemo, useRef, useState } from "react";
+import { api } from "../lib/api";
+import type { ImportPayload, ImportResult } from "../lib/types";
+import { AI_IMPORT_GUIDE } from "../lib/aiGuide";
+import { useI18n } from "../lib/i18n";
+
+const EXAMPLE = JSON.stringify(
+  {
+    plans: [
+      {
+        name: "My Week",
+        slug: "my-week",
+        description: "A sample imported plan.",
+        isActive: true,
+        startWeekday: 6,
+      },
+    ],
+    foods: [
+      {
+        name: "Omelette",
+        slug: "omelette",
+        description: "Cheese omelette.",
+        minDuration: 6,
+        maxDuration: 10,
+        steps: [
+          {
+            name: "Whisk eggs",
+            description: "Beat eggs in a bowl.",
+            duration: 2,
+            minDuration: 1,
+            maxDuration: 3,
+            offsetTime: 0,
+          },
+          {
+            name: "Cook",
+            description: "Cook until set.",
+            duration: 6,
+            minDuration: 4,
+            maxDuration: 8,
+            offsetTime: 2,
+          },
+        ],
+      },
+    ],
+    meals: [
+      {
+        planSlug: "my-week",
+        weekday: 1,
+        name: "Monday Omelette",
+        mealType: "breakfast",
+        deadlineAt: 480,
+        foodSlug: "omelette",
+      },
+    ],
+  },
+  null,
+  2
+);
+
+async function copyText(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.style.position = "fixed";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.select();
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    return ok;
+  } catch {
+    return false;
+  }
+}
+
+export default function ImportView() {
+  const { t } = useI18n();
+  const [text, setText] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<ImportResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [copied, setCopied] = useState<string | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const parsed = useMemo<{ ok: boolean; data?: ImportPayload; error?: string }>(() => {
+    if (!text.trim()) return { ok: false };
+    try {
+      return { ok: true, data: JSON.parse(text) as ImportPayload };
+    } catch (e) {
+      return { ok: false, error: String(e) };
+    }
+  }, [text]);
+
+  async function doCopyGuide() {
+    const ok = await copyText(AI_IMPORT_GUIDE);
+    setCopied(ok ? t("import.guideCopied") : t("import.copyFailed"));
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  async function doCopyExample() {
+    const ok = await copyText(EXAMPLE);
+    setCopied(ok ? t("import.exampleCopied") : t("import.copyFailed"));
+    setTimeout(() => setCopied(null), 2500);
+  }
+
+  async function doImport() {
+    if (!parsed.ok || !parsed.data) return;
+    setBusy(true);
+    setResult(null);
+    setError(null);
+    try {
+      const r = await api.importData(parsed.data);
+      setResult(r);
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const content = await file.text();
+    setText(content);
+  }
+
+  const counts =
+    parsed.ok && parsed.data
+      ? {
+          plans: parsed.data.plans?.length ?? 0,
+          foods: parsed.data.foods?.length ?? 0,
+          meals: parsed.data.meals?.length ?? 0,
+        }
+      : null;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      <div>
+        <h1 className="text-2xl font-bold break-words">{t("import.title")}</h1>
+        <p className="text-sm opacity-70 mt-1 break-words">{t("import.description")}</p>
+      </div>
+
+      <div className="card bg-gradient-to-br from-primary/15 to-secondary/10 border border-primary/30">
+        <div className="card-body p-4 sm:p-5 min-w-0">
+          <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+            <div className="flex items-center gap-3 flex-1 min-w-0">
+              <span className="text-3xl shrink-0">🤖</span>
+              <div className="min-w-0">
+                <div className="font-bold">{t("import.aiHelper")}</div>
+                <div className="text-xs opacity-70 break-words">{t("import.aiHelperDesc")}</div>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn btn-primary btn-sm" onClick={doCopyGuide}>
+                {t("import.copyGuide")}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={doCopyExample}>
+                {t("import.copyExample")}
+              </button>
+            </div>
+          </div>
+          {copied && (
+            <div className="alert alert-success text-sm py-2 mt-2">{copied}</div>
+          )}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        <div className="lg:col-span-2 space-y-3 min-w-0">
+          <div className="card bg-base-200 border border-base-300">
+            <div className="card-body p-4 space-y-3 min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="badge badge-primary">{t("import.pasteJson")}</span>
+                <div className="flex-1" />
+                <button className="btn btn-xs btn-ghost" onClick={() => setText(EXAMPLE)}>
+                  {t("import.loadExample")}
+                </button>
+                <button
+                  className="btn btn-xs btn-ghost"
+                  onClick={() => {
+                    setText("");
+                    setResult(null);
+                    setError(null);
+                  }}
+                >
+                  {t("common.clear")}
+                </button>
+                <button className="btn btn-xs btn-ghost" onClick={() => fileRef.current?.click()}>
+                  {t("import.uploadJson")}
+                </button>
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".json,application/json"
+                  className="hidden"
+                  onChange={onFile}
+                />
+              </div>
+
+              <textarea
+                className="textarea textarea-bordered w-full font-mono text-xs"
+                rows={18}
+                spellCheck={false}
+                dir="ltr"
+                placeholder='{ "plans": [...], "foods": [...], "meals": [...] }'
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+              />
+
+              {text.trim() && (
+                <div>
+                  {parsed.ok ? (
+                    <div className="flex flex-wrap gap-2 items-center">
+                      <span className="badge badge-success">{t("import.jsonValid")}</span>
+                      <span className="badge badge-ghost">
+                        <bdi dir="ltr" className="tabular-nums">{counts?.plans ?? 0}</bdi>{" "}
+                        {t("import.plansCount", { count: "" }).replace(/\s*\{\{count\}\}\s*/, " ").trim()}
+                      </span>
+                      <span className="badge badge-ghost">
+                        <bdi dir="ltr" className="tabular-nums">{counts?.foods ?? 0}</bdi>{" "}
+                        {t("import.foodsCount", { count: "" }).replace(/\s*\{\{count\}\}\s*/, " ").trim()}
+                      </span>
+                      <span className="badge badge-ghost">
+                        <bdi dir="ltr" className="tabular-nums">{counts?.meals ?? 0}</bdi>{" "}
+                        {t("import.mealsCount", { count: "" }).replace(/\s*\{\{count\}\}\s*/, " ").trim()}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="alert alert-error text-xs break-words" dir="ltr">
+                      {parsed.error}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {error && <div className="alert alert-error text-sm break-words">{error}</div>}
+
+              <div className="flex justify-end">
+                <button
+                  className="btn btn-primary"
+                  disabled={!parsed.ok || !parsed.data || busy}
+                  onClick={doImport}
+                >
+                  {busy ? (
+                    <span className="loading loading-spinner loading-sm" />
+                  ) : (
+                    t("import.import")
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {result && (
+            <div className="card bg-base-200 border border-success/40">
+              <div className="card-body p-4 min-w-0">
+                <h3 className="font-bold text-success">{t("import.importComplete")}</h3>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mt-2">
+                  <Stat label={t("import.plansCreated")} value={result.plansCreated} />
+                  <Stat label={t("import.plansSkipped")} value={result.plansSkipped} muted />
+                  <Stat label={t("import.foodsCreated")} value={result.foodsCreated} />
+                  <Stat label={t("import.foodsSkipped")} value={result.foodsSkipped} muted />
+                  <Stat label={t("import.mealsCreated")} value={result.mealsCreated} />
+                  <Stat label={t("import.mealsSkipped")} value={result.mealsSkipped} muted />
+                </div>
+                {result.errors.length > 0 && (
+                  <details className="mt-3">
+                    <summary className="cursor-pointer text-sm opacity-80">
+                      <bdi dir="ltr" className="tabular-nums">{result.errors.length}</bdi>{" "}
+                      {t("import.warnings", { count: "" }).replace(/\s*\{\{count\}\}\s*/, " ").trim()}
+                    </summary>
+                    <ul className="list-disc list-inside text-xs opacity-70 mt-2 space-y-1 break-words">
+                      {result.errors.map((e, i) => (
+                        <li key={i}>{e}</li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        <aside className="space-y-3 min-w-0">
+          <div className="card bg-base-200 border border-base-300">
+            <div className="card-body p-4 space-y-2 min-w-0">
+              <h3 className="font-bold text-sm">{t("import.quickRules")}</h3>
+              <ul className="text-xs opacity-70 space-y-1.5 list-disc list-inside break-words">
+                <li>{t("import.ruleWeekday")}</li>
+                <li>{t("import.ruleStartWeekday")}</li>
+                <li>{t("import.ruleDeadline")}</li>
+                <li>{t("import.ruleDurations")}</li>
+                <li>{t("import.ruleSlugs")}</li>
+                <li>{t("import.rulePlanSlug")}</li>
+                <li>{t("import.ruleFoodSlug")}</li>
+                <li>{t("import.ruleOneFood")}</li>
+              </ul>
+            </div>
+          </div>
+        </aside>
+      </div>
+    </div>
+  );
+}
+
+function Stat({ label, value, muted }: { label: string; value: number; muted?: boolean }) {
+  return (
+    <div
+      className={`rounded-lg p-2 bg-base-100/60 border border-base-300 min-w-0 ${
+        muted ? "opacity-60" : ""
+      }`}
+    >
+      <div className="text-xl font-bold tabular-nums" dir="ltr">{value}</div>
+      <div className="text-[11px] opacity-60 break-words">{label}</div>
+    </div>
+  );
+}
+
+===== components/MealDetailPanel.tsx =====
+// Deprecated: meal detail rendering is inlined in WeekView.
+export default function MealDetailPanel() {
+  return null;
+}
+
+===== components/PermissionsModal.tsx =====
+import { useEffect, useState } from "react";
+import { invoke } from "@tauri-apps/api/core";
+import { useI18n } from "../lib/i18n";
+import { alarmScheduler, type PermissionsStatus } from "../lib/alarmScheduler";
+
+export default function PermissionsModal({
+  onClose,
+  onAllGranted,
+}: {
+  onClose: () => void;
+  onAllGranted?: () => void;
+}) {
+  const { t } = useI18n();
+  const [status, setStatus] = useState<PermissionsStatus | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      const s = await alarmScheduler.checkPermissions();
+      setStatus(s);
+      if (s.notificationsGranted && s.exactAlarmGranted && s.fullScreenIntentGranted) {
+        onAllGranted?.();
+      }
+    } catch (e) {
+      console.error("[PermissionsModal] checkPermissions failed", e);
+      setStatus({
+        notificationsGranted: false,
+        exactAlarmGranted: false,
+        fullScreenIntentGranted: false,
+      });
+      // Do NOT call onAllGranted() — we don't actually know the state.
+
+      // Non-Android target: treat as granted so the toggle can enable.
+      // setStatus({ notificationsGranted: true, exactAlarmGranted: true, fullScreenIntentGranted: true });
+      // onAllGranted?.();
+    }
+  }
+  useEffect(() => { refresh(); }, []);
+
+  const [err, setErr] = useState<string | null>(null);
+
+  async function grant(kind: "notif" | "exact" | "fsi") {
+    setBusy(kind);
+    setErr(null);
+    try {
+      if (kind === "notif") {
+        await alarmScheduler.requestNotificationPermission();
+      } else if (kind === "exact") {
+        await invoke("plugin:alarm|open_exact_alarm_settings");
+      } else {
+        await invoke("plugin:alarm|open_full_screen_intent_settings");
+      }
+      setTimeout(refresh, 800);
+    } catch (e) {
+      console.error(`[PermissionsModal] grant(${kind}) failed`, e);
+      setErr(String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4" onClick={onClose}>
+      <div
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-md"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 space-y-4">
+          <h2 className="text-xl font-bold flex items-center gap-2">
+            <span className="text-3xl">🔔</span> {t("permissions.title")}
+          </h2>
+          <p className="text-sm opacity-80">{t("permissions.body")}</p>
+          {err && (
+            <div className="alert alert-error text-xs break-words" dir="ltr">
+              {err}
+            </div>
+          )}
+          <Row label={t("permissions.notifications")} ok={status?.notificationsGranted ?? false}
+            busy={busy === "notif"} grantLabel={t("permissions.grant")}
+            grantedLabel={t("permissions.granted")} onGrant={() => grant("notif")} />
+          <Row label={t("permissions.exactAlarm")} ok={status?.exactAlarmGranted ?? false}
+            busy={busy === "exact"} grantLabel={t("permissions.openSettings")}
+            grantedLabel={t("permissions.granted")} onGrant={() => grant("exact")} />
+          <Row label={t("permissions.fullScreenIntent")} ok={status?.fullScreenIntentGranted ?? false}
+            busy={busy === "fsi"} grantLabel={t("permissions.openSettings")}
+            grantedLabel={t("permissions.granted")} onGrant={() => grant("fsi")} />
+
+          <div className="flex justify-end">
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>{t("common.close")}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Row({
+  label, ok, busy, grantLabel, grantedLabel, onGrant,
+}: { label: string; ok: boolean; busy: boolean; grantLabel: string; grantedLabel: string; onGrant: () => void; }) {
+  return (
+    <div className={`flex items-center gap-3 p-3 border-2 ${ok ? "border-success bg-success/10" : "border-base-300"}`}>
+      <div className="flex-1 text-sm font-medium">{label}</div>
+      {ok ? (
+        <span className="badge badge-success badge-sm">✓ {grantedLabel}</span>
+      ) : (
+        <button className="btn btn-xs btn-primary" onClick={onGrant} disabled={busy}>
+          {busy ? <span className="loading loading-spinner loading-xs" /> : grantLabel}
+        </button>
+      )}
+    </div>
+  );
+}
+
+===== components/PlansView.tsx =====
+import { useEffect, useState } from "react";
+import { api } from "../lib/api";
+import type { Plan } from "../lib/types";
+import WeekView from "./WeekView";
+import { useI18n } from "../lib/i18n";
+import { useConfirm } from "./ConfirmDialog";
+
+function slugify(s: string) {
+  return (
+    s
+      .toLowerCase()
+      .trim()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "") || "plan"
+  );
+}
+
+export default function PlansView({ onOpenFood }: { onOpenFood: (id: number) => void }) {
+  const { t, weekdayName } = useI18n();
+  const askConfirm = useConfirm();
+  const [plans, setPlans] = useState<Plan[]>([]);
+  const [selected, setSelected] = useState<Plan | null>(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function refresh() {
+    try {
+      setPlans(await api.listPlans());
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  async function deletePlan(p: Plan) {
+    const msg = p.isActive
+      ? t("plans.deleteActiveConfirm", { name: p.name })
+      : t("plans.deleteConfirm", { name: p.name });
+    const ok = await askConfirm({
+      message: msg,
+      danger: true,
+      confirmLabel: t("common.delete"),
+      cancelLabel: t("common.cancel"),
+    });
+    if (!ok) return;
+    try {
+      await api.deletePlan(p.id);
+      if (selected?.id === p.id) setSelected(null);
+      await refresh();
+      window.dispatchEvent(new Event("cookplans:schedules-changed"));
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, []);
+
+  if (selected) {
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            className="btn btn-sm btn-ghost shrink-0"
+            onClick={() => {
+              setSelected(null);
+              refresh();
+            }}
+          >
+            {t("plans.backToPlans")}
+          </button>
+          <h1 className="text-2xl font-bold break-words min-w-0">{selected.name}</h1>
+          {selected.isActive && (
+            <span className="badge badge-primary shrink-0">{t("plans.active")}</span>
+          )}
+          <div className="flex-1 min-w-0" />
+          {!selected.isActive && (
+            <button
+              className="btn btn-primary btn-sm shrink-0"
+              onClick={async () => {
+                await api.setActivePlan(selected.id);
+                setSelected({ ...selected, isActive: true });
+                window.dispatchEvent(new Event("cookplans:schedules-changed"));
+              }}
+            >
+              {t("plans.setActive")}
+            </button>
+          )}
+          <button
+            className="btn btn-error btn-outline btn-sm shrink-0"
+            onClick={() => deletePlan(selected)}
+          >
+            {t("common.delete")}
+          </button>
+        </div>
+        {selected.description && (
+          <p className="text-sm opacity-70 break-words">{selected.description}</p>
+        )}
+        <WeekView
+          plan={selected}
+          onPlanUpdated={(p) => setSelected(p)}
+          onOpenFood={onOpenFood}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <h1 className="text-2xl font-bold">{t("plans.title")}</h1>
+        <div className="flex-1" />
+        <button className="btn btn-primary btn-sm" onClick={() => setShowCreate(true)}>
+          {t("plans.newPlan")}
+        </button>
+      </div>
+
+      {err && <div className="alert alert-error text-sm">{err}</div>}
+
+      {plans.length === 0 ? (
+        <div className="card bg-base-200 p-8 text-center opacity-70">{t("plans.empty")}</div>
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+          {plans.map((p) => (
+            <div key={p.id} className="group relative h-full">
+              <div
+                onClick={() => setSelected(p)}
+                className={`card bg-base-200 border-2 transition cursor-pointer hover:-translate-y-0.5 hover:shadow-xl h-full flex flex-col ${
+                  p.isActive
+                    ? "border-primary shadow-lg shadow-primary/20"
+                    : "border-base-300 hover:border-primary/60"
+                }`}
+              >
+                <div className="card-body p-5 min-w-0 flex-1">
+                  <div className="flex items-start gap-2">
+                    <div className="text-3xl shrink-0">📖</div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="font-bold text-lg leading-tight break-words">
+                        {p.name}
+                      </h3>
+                      <div className="text-[11px] uppercase tracking-wider opacity-50 mt-0.5 break-all">
+                        {p.slug}
+                      </div>
+                    </div>
+                    {p.isActive && (
+                      <span className="badge badge-primary badge-sm shrink-0">
+                        {t("plans.active")}
+                      </span>
+                    )}
+                  </div>
+                  {p.description && (
+                    <p className="text-sm opacity-70 mt-2 leading-snug break-words">
+                      {p.description}
+                    </p>
+                  )}
+                  <div className="divider my-2" />
+                  <div className="text-xs opacity-60 flex items-center gap-2 min-w-0 pe-8 mt-auto">
+                    <span className="truncate">
+                      🗓 {t("plans.startsOn", { day: weekdayName(p.startWeekday) })}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  deletePlan(p);
+                }}
+                className="absolute bottom-2 end-2 z-10 btn btn-xs btn-ghost text-error opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity"
+                title={t("common.delete")}
+                aria-label={t("common.delete")}
+              >
+                🗑
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {showCreate && (
+        <CreatePlanModal
+          onClose={() => setShowCreate(false)}
+          onCreated={() => {
+            setShowCreate(false);
+            refresh();
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreatePlanModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
+  const { t, weekdayName } = useI18n();
+  const [name, setName] = useState("");
+  const [desc, setDesc] = useState("");
+  const [startWeekday, setStartWeekday] = useState(6);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit() {
+    if (!name.trim()) {
+      setErr(t("common.nameRequired"));
+      return;
+    }
+    try {
+      await api.createPlan({
+        name: name.trim(),
+        description: desc.trim() || undefined,
+        slug: slugify(name),
+        startWeekday,
+      });
+      onCreated();
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 space-y-4">
+          <h2 className="text-xl font-bold">{t("plans.newPlanTitle")}</h2>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("common.name")}</span>
+            </label>
+            <input
+              className="input input-bordered w-full"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("common.description")}</span>
+            </label>
+            <textarea
+              className="textarea textarea-bordered w-full"
+              rows={2}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+            />
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("plans.weekStartsOn")}</span>
+            </label>
+            <select
+              className="select select-bordered w-full"
+              value={startWeekday}
+              onChange={(e) => setStartWeekday(Number(e.target.value))}
+            >
+              {[6, 0, 1, 2, 3, 4, 5].map((i) => (
+                <option key={i} value={i}>
+                  {weekdayName(i)}
+                </option>
+              ))}
+            </select>
+          </div>
+          {err && <div className="alert alert-error text-sm">{err}</div>}
+          <div className="flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn btn-primary" onClick={submit}>
+              {t("common.create")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== components/StepFormModal.tsx =====
+import { useState } from "react";
+import { api } from "../lib/api";
+import type { FoodStep } from "../lib/types";
+import { useI18n } from "../lib/i18n";
+
+export default function StepFormModal({
+  foodId,
+  step,
+  onClose,
+  onSaved,
+}: {
+  foodId: number;
+  step?: FoodStep;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t } = useI18n();
+  const isNew = !step;
+  const [name, setName] = useState(step?.name ?? "");
+  const [desc, setDesc] = useState(step?.description ?? "");
+  const [offset, setOffset] = useState(step?.offsetTime ?? 0);
+  const [duration, setDuration] = useState(step?.duration ?? 5);
+  const [minDur, setMinDur] = useState(step?.minDuration ?? 3);
+  const [maxDur, setMaxDur] = useState(step?.maxDuration ?? 8);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function save() {
+    if (!name.trim()) {
+      setErr(t("common.nameRequired"));
+      return;
+    }
+    try {
+      if (isNew) {
+        await api.createStep({
+          foodId,
+          name: name.trim(),
+          description: desc.trim() || undefined,
+          offsetTime: Number(offset) || 0,
+          duration: Number(duration) || 0,
+          minDuration: Number(minDur) || 0,
+          maxDuration: Number(maxDur) || 0,
+        });
+      } else {
+        await api.updateStep({
+          id: step!.id,
+          name: name.trim(),
+          description: desc.trim() || undefined,
+          offsetTime: Number(offset) || 0,
+          duration: Number(duration) || 0,
+          minDuration: Number(minDur) || 0,
+          maxDuration: Number(maxDur) || 0,
+        });
+      }
+      onSaved();
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-lg max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 space-y-4">
+          <h2 className="text-xl font-bold">
+            {isNew ? t("step.newStep") : t("step.editStep")}
+          </h2>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("common.name")}</span>
+            </label>
+            <input
+              className="input input-bordered w-full"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              autoFocus
+            />
+          </div>
+          <div className="form-control">
+            <label className="label">
+              <span className="label-text">{t("common.description")}</span>
+            </label>
+            <textarea
+              className="textarea textarea-bordered w-full"
+              rows={2}
+              value={desc}
+              onChange={(e) => setDesc(e.target.value)}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("step.offset")}</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="input input-bordered w-full"
+                value={offset}
+                onChange={(e) => setOffset(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("step.duration")}</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="input input-bordered w-full"
+                value={duration}
+                onChange={(e) => setDuration(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("step.minDuration")}</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="input input-bordered w-full"
+                value={minDur}
+                onChange={(e) => setMinDur(Number(e.target.value))}
+              />
+            </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("step.maxDuration")}</span>
+              </label>
+              <input
+                type="number"
+                min={0}
+                className="input input-bordered w-full"
+                value={maxDur}
+                onChange={(e) => setMaxDur(Number(e.target.value))}
+              />
+            </div>
+          </div>
+          {err && <div className="alert alert-error text-sm">{err}</div>}
+          <div className="flex justify-end gap-2">
+            <button className="btn btn-ghost" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn btn-primary" onClick={save}>
+              {isNew ? t("common.create") : t("common.save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== components/ThemeToggle.tsx =====
+import { useTheme } from "../lib/useTheme";
+
+export default function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const isDark = theme === "neobrutalism-dark";
+
+  return (
+    <button
+      className="btn btn-ghost btn-sm btn-square"
+      onClick={toggleTheme}
+      aria-label={isDark ? "Switch to light theme" : "Switch to dark theme"}
+      title={isDark ? "Switch to light theme" : "Switch to dark theme"}
+    >
+      {isDark ? (
+        <svg
+          className="h-5 w-5 fill-current"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="M21.64,13a1,1,0,0,0-1.05-.14,8.05,8.05,0,0,1-3.37.73A8.15,8.15,0,0,1,9.08,5.49a8.59,8.59,0,0,1,.25-2A1,1,0,0,0,8,2.36,10.14,10.14,0,1,0,22,14.05,1,1,0,0,0,21.64,13Z" />
+        </svg>
+      ) : (
+        <svg
+          className="h-5 w-5 fill-current"
+          xmlns="http://www.w3.org/2000/svg"
+          viewBox="0 0 24 24"
+          aria-hidden="true"
+        >
+          <path d="M5.64,17l-.71.71a1,1,0,0,0,0,1.41,1,1,0,0,0,1.41,0l.71-.71A1,1,0,0,0,5.64,17ZM5,12a1,1,0,0,0-1-1H3a1,1,0,0,0,0,2H4A1,1,0,0,0,5,12Zm7-7a1,1,0,0,0,1-1V3a1,1,0,0,0-2,0V4A1,1,0,0,0,12,5ZM5.64,7.05a1,1,0,0,0,.7.29,1,1,0,0,0,.71-.29,1,1,0,0,0,0-1.41l-.71-.71A1,1,0,0,0,4.93,6.34Zm12,.29a1,1,0,0,0,.7-.29l.71-.71a1,1,0,1,0-1.41-1.41L17,5.64a1,1,0,0,0,0,1.41A1,1,0,0,0,17.66,7.34ZM21,11H20a1,1,0,0,0,0,2h1a1,1,0,0,0,0-2Zm-9,8a1,1,0,0,0-1,1v1a1,1,0,0,0,2,0V20A1,1,0,0,0,12,19ZM18.36,17A1,1,0,0,0,17,18.36l.71.71a1,1,0,0,0,1.41,0,1,1,0,0,0,0-1.41ZM12,6.5A5.5,5.5,0,1,0,17.5,12,5.51,5.51,0,0,0,12,6.5Zm0,9A3.5,3.5,0,1,1,15.5,12,3.5,3.5,0,0,1,12,15.5Z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
+===== components/WeekView.tsx =====
+import { useEffect, useMemo, useState } from "react";
+import { api } from "../lib/api";
+import type { Plan, Food, PlanMealDetail } from "../lib/types";
+import { MEAL_EMOJI, timeToMinutes, minutesToInput } from "../lib/types";
+import { useI18n } from "../lib/i18n";
+import { useConfirm } from "./ConfirmDialog";
+
+export default function WeekView({
+  plan,
+  onPlanUpdated,
+  onOpenFood,
+}: {
+  plan: Plan;
+  onPlanUpdated: (p: Plan) => void;
+  onOpenFood: (id: number) => void;
+}) {
+  const { t, weekdayName, formatTime } = useI18n();
+  const askConfirm = useConfirm();
+  const [weekDetails, setWeekDetails] = useState<PlanMealDetail[]>([]);
+  const [foods, setFoods] = useState<Food[]>([]);
+  const [focusedDay, setFocusedDay] = useState<number>(() => new Date().getDay());
+  const [editing, setEditing] = useState<{ weekday: number; detail?: PlanMealDetail } | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+  const [nowMin, setNowMin] = useState(() => {
+    const d = new Date();
+    return d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60;
+  });
+
+  const dayOrder = useMemo(() => {
+    const arr: number[] = [];
+    for (let i = 0; i < 7; i++) arr.push((plan.startWeekday + i) % 7);
+    return arr;
+  }, [plan.startWeekday]);
+
+  async function refresh() {
+    try {
+      const [details, fs] = await Promise.all([
+        api.getPlanWeekDetails(plan.id),
+        api.listFoods(),
+      ]);
+      setWeekDetails(details);
+      setFoods(fs);
+    } catch (e) {
+      setErr(String(e));
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+  }, [plan.id]);
+
+  useEffect(() => {
+    const t = setInterval(() => {
+      const d = new Date();
+      setNowMin(d.getHours() * 60 + d.getMinutes() + d.getSeconds() / 60);
+    }, 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  const mealCountByDay = useMemo(() => {
+    const m: Record<number, number> = {};
+    for (const d of weekDetails) m[d.weekday] = (m[d.weekday] ?? 0) + 1;
+    return m;
+  }, [weekDetails]);
+
+  const focusedMeals = weekDetails
+    .filter((d) => d.weekday === focusedDay)
+    .sort((a, b) => a.details.meal.deadlineAt - b.details.meal.deadlineAt);
+
+  const allSteps = focusedMeals.flatMap((m) =>
+    m.details.steps.map((s) => ({
+      ...s,
+      mealName: m.details.meal.name,
+      foodName: m.details.food.name,
+      planMealId: m.planMealId,
+    }))
+  );
+  const currentStep = allSteps
+    .filter((s) => s.startAt <= nowMin && s.endAt > nowMin)
+    .sort((a, b) => a.startAt - b.startAt)[0];
+  const nextStep = allSteps
+    .filter((s) => s.startAt > nowMin)
+    .sort((a, b) => a.startAt - b.startAt)[0];
+
+  return (
+    <div className="space-y-4">
+      {err && <div className="alert alert-error text-sm">{err}</div>}
+
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="opacity-60">{t("week.weekStartsOn")}</span>
+        <select
+          className="select select-sm select-bordered"
+          value={plan.startWeekday}
+          onChange={async (e) => {
+            const val = Number(e.target.value);
+            await api.updatePlan({
+              id: plan.id,
+              name: plan.name,
+              description: plan.description ?? undefined,
+              slug: plan.slug,
+              startWeekday: val,
+            });
+            onPlanUpdated({ ...plan, startWeekday: val });
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
+          }}
+        >
+          {[6, 0, 1, 2, 3, 4, 5].map((i) => (
+            <option key={i} value={i}>
+              {weekdayName(i)}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+        {dayOrder.map((weekday) => {
+          const count = mealCountByDay[weekday] ?? 0;
+          const isFocused = focusedDay === weekday;
+          const isToday = new Date().getDay() === weekday;
+          return (
+            <button
+              key={weekday}
+              onClick={() => setFocusedDay(weekday)}
+              className={`card border-2 p-2 sm:p-3 flex flex-col items-center justify-center min-h-[92px] transition ${isFocused
+                  ? "bg-primary/20 border-primary shadow-lg"
+                  : "bg-base-200 border-base-300 hover:border-primary/50"
+                }`}
+            >
+              <div
+                className={`text-[10px] sm:text-xs uppercase tracking-wider sm:tracking-widest font-semibold text-center break-words leading-tight ${isFocused ? "text-primary" : "opacity-60"
+                  }`}
+              >
+                {weekdayName(weekday)}
+                {isToday && <span className="ms-1 text-[10px] text-success">●</span>}
+              </div>
+              <div
+                className={`text-3xl font-bold leading-none mt-1 tabular-nums ${count === 0 ? "opacity-30" : ""
+                  }`}
+                dir="ltr"
+              >
+                {count}
+              </div>
+              <div className="text-[10px] opacity-50 mt-0.5 whitespace-nowrap">
+                {count === 1 ? t("week.mealSingular") : t("week.mealPlural")}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="space-y-3 mt-4">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-bold text-lg break-words min-w-0">
+            {t("week.dayMeals", { day: weekdayName(focusedDay) })}
+          </h3>
+          <span className="badge badge-ghost tabular-nums shrink-0" dir="ltr">
+            {focusedMeals.length}
+          </span>
+          <div className="flex-1" />
+          <button
+            className="btn btn-primary btn-sm shrink-0"
+            onClick={() => setEditing({ weekday: focusedDay })}
+          >
+            {t("week.addMeal")}
+          </button>
+        </div>
+
+        {currentStep && (
+          <div className="card bg-success/10 border-2 border-success/40">
+            <div className="card-body p-4 flex-row items-center gap-4 flex-wrap">
+              <div className="text-3xl shrink-0">🍳</div>
+              <div className="flex-1 min-w-[180px]">
+                <div className="text-xs uppercase tracking-wider text-success font-bold">
+                  {t("week.currentMeal")}
+                </div>
+                <div className="font-semibold break-words text-base sm:text-lg">
+                  {currentStep.foodName} · {currentStep.name}
+                </div>
+                <div className="rtl:text-right mt-1 flex flex-wrap gap-2 items-baseline">
+                  <span dir="ltr">
+                    <bdi className="text-lg font-semibold tabular-nums">
+                      {formatTime(currentStep.startAt)}
+                    </bdi>
+                    <span className="opacity-50">→</span>
+                    <bdi className="text-lg font-semibold tabular-nums opacity-80">
+                      {formatTime(currentStep.endAt)}
+                    </bdi>
+                    <bdi className="text-sm opacity-60 tabular-nums">
+                      ({currentStep.duration}m)
+                    </bdi>
+                  </span>
+                </div>
+              </div>
+              <div className="text-end shrink-0">
+                <div className="text-xs uppercase tracking-wider opacity-60">
+                  {t("week.mealLabel")}
+                </div>
+                <div className="font-semibold text-sm break-words">
+                  {currentStep.mealName}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {nextStep && (
+          <div className="card bg-gradient-to-br from-primary/20 to-secondary/10 border border-primary/30">
+            <div className="card-body p-4 flex-row items-center gap-4 flex-wrap">
+              <div className="text-3xl shrink-0">⏳</div>
+              <div className="flex-1 min-w-[180px]">
+                <div className="text-xs uppercase tracking-wider opacity-70">
+                  {t("week.nextStep")}
+                </div>
+                <div className="font-semibold break-words text-base sm:text-lg">
+                  {nextStep.foodName} · {nextStep.name}
+                </div>
+                <div className="mt-1 flex flex-wrap gap-2 items-baseline">
+                  <span className="text-xs uppercase tracking-wider opacity-60">
+                    {t("week.at")}
+                  </span>
+                  <bdi dir="ltr" className="text-2xl font-bold tabular-nums text-primary">
+                    {formatTime(nextStep.startAt)}
+                  </bdi>
+                  <bdi dir="ltr" className="text-sm opacity-70 tabular-nums">
+                    ({nextStep.duration}m)
+                  </bdi>
+                </div>
+              </div>
+              <div className="text-end shrink-0">
+                <div className="text-xs uppercase tracking-wider opacity-70">{t("week.in")}</div>
+                <div className="text-3xl font-mono font-bold tabular-nums" dir="ltr">
+                  {(() => {
+                    const total = Math.max(0, Math.floor((nextStep.startAt - nowMin) * 60));
+                    const mm = Math.floor(total / 60);
+                    const ss = total % 60;
+                    return `${String(mm).padStart(2, "0")}:${String(ss).padStart(2, "0")}`;
+                  })()}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-3">
+          {focusedMeals.length === 0 && (
+            <div className="card bg-base-200 border-2 border-dashed border-base-300 p-8 text-center">
+              <div className="opacity-60 mb-3 break-words">
+                {t("week.noMeals", { day: weekdayName(focusedDay) })}
+              </div>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => setEditing({ weekday: focusedDay })}
+              >
+                {t("week.addMeal")}
+              </button>
+            </div>
+          )}
+          {focusedMeals.map((m) => (
+            <MealRow
+              key={m.planMealId}
+              detail={m}
+              nowMin={nowMin}
+              onOpenFood={onOpenFood}
+              onEdit={() => setEditing({ weekday: focusedDay, detail: m })}
+              onDelete={async () => {
+                const ok = await askConfirm({
+                  message: t("week.deleteMealConfirm", {
+                    name: m.details.meal.name,
+                  }),
+                  danger: true,
+                  confirmLabel: t("common.delete"),
+                  cancelLabel: t("common.cancel"),
+                });
+                if (!ok) return;
+                await api.deleteMeal(m.details.meal.id);
+                refresh();
+                window.dispatchEvent(new Event("cookplans:schedules-changed"));
+              }}
+            />
+          ))}
+        </div>
+      </div>
+
+      {editing && (
+        <MealEditor
+          plan={plan}
+          weekday={editing.weekday}
+          existing={editing.detail}
+          foods={foods}
+          onClose={() => setEditing(null)}
+          onSaved={() => {
+            setEditing(null);
+            refresh();
+            window.dispatchEvent(new Event("cookplans:schedules-changed"));
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function MealRow({
+  detail,
+  nowMin,
+  onOpenFood,
+  onEdit,
+  onDelete,
+}: {
+  detail: PlanMealDetail;
+  nowMin: number;
+  onOpenFood: (id: number) => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const { t, formatTime } = useI18n();
+  const { meal, food, cookStartAt, steps } = detail.details;
+  const currentStep = steps.find((s) => s.startAt <= nowMin && s.endAt > nowMin);
+
+  return (
+    <div className="card bg-base-200 border border-base-300">
+      <div className="card-body p-4 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-2xl shrink-0">{MEAL_EMOJI[meal.mealType] ?? "🍽"}</span>
+          <div className="font-semibold break-words min-w-0">{meal.name}</div>
+          <span className="badge badge-ghost badge-sm shrink-0">
+            {t(`week.mealTypes.${meal.mealType}` as any)}
+          </span>
+          {currentStep && (
+            <span className="badge badge-primary badge-sm shrink-0">
+              {t("common.now")}: {currentStep.name}
+            </span>
+          )}
+          <div className="flex-1" />
+          <button className="btn btn-xs btn-ghost shrink-0" onClick={onEdit}>
+            {t("common.edit")}
+          </button>
+          <button className="btn btn-xs btn-ghost text-error shrink-0" onClick={onDelete}>
+            ✕
+          </button>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs opacity-80 mt-1">
+          <span className="whitespace-nowrap">
+            🍽 <bdi dir="ltr" className="tabular-nums">{formatTime(meal.deadlineAt)}</bdi>
+          </span>
+          <span className="whitespace-nowrap">
+            🔥 <bdi dir="ltr" className="tabular-nums">{formatTime(cookStartAt)}</bdi>
+          </span>
+          <span className="whitespace-nowrap">
+            ⏱ <bdi dir="ltr" className="tabular-nums">{food.maxDuration}m</bdi>
+          </span>
+          <span className="opacity-40">·</span>
+          <button
+            className="link link-primary font-medium break-words text-start"
+            onClick={() => onOpenFood(food.id)}
+          >
+            {food.name} ↗
+          </button>
+        </div>
+        {steps.length > 0 && (
+          <div className="flex flex-col gap-1 mt-2">
+            {steps.map((s) => {
+              const isCurrent = s.startAt <= nowMin && s.endAt > nowMin;
+              const isPast = s.endAt <= nowMin;
+              return (
+                <div
+                  key={s.id}
+                  dir="ltr"
+                  className={`flex items-center gap-2 text-xs px-2 py-1 rounded ${isCurrent
+                      ? "bg-primary/20 border border-primary/50"
+                      : isPast
+                        ? "opacity-40"
+                        : "bg-base-300/40"
+                    }`}
+                >
+                  <bdi dir="ltr" className="font-mono whitespace-nowrap tabular-nums">
+                    {formatTime(s.startAt)}
+                  </bdi>
+                  <span className="opacity-40">→</span>
+                  <bdi
+                    dir="ltr"
+                    className="font-mono whitespace-nowrap opacity-70 tabular-nums"
+                  >
+                    {formatTime(s.endAt)}
+                  </bdi>
+                  <span className="flex-1 truncate min-w-0">{s.name}</span>
+                  <bdi dir="ltr" className="opacity-50 whitespace-nowrap tabular-nums">
+                    {s.duration}m
+                  </bdi>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MealEditor({
+  plan,
+  weekday,
+  existing,
+  foods,
+  onClose,
+  onSaved,
+}: {
+  plan: Plan;
+  weekday: number;
+  existing?: PlanMealDetail;
+  foods: Food[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t, weekdayName } = useI18n();
+  const [name, setName] = useState(existing?.details.meal.name ?? "");
+  const [desc, setDesc] = useState(existing?.details.meal.description ?? "");
+  const [type, setType] = useState(existing?.details.meal.mealType ?? "breakfast");
+  const [deadline, setDeadline] = useState(
+    existing ? minutesToInput(existing.details.meal.deadlineAt) : "08:00"
+  );
+  const [foodId, setFoodId] = useState<number>(
+    existing?.details.meal.foodId ?? (foods[0]?.id ?? 0)
+  );
+  const [err, setErr] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  async function save() {
+    if (!name.trim()) {
+      setErr(t("common.nameRequired"));
+      return;
+    }
+    if (!foodId) {
+      setErr(t("week.pickFood"));
+      return;
+    }
+    setBusy(true);
+    setErr(null);
+    try {
+      if (existing) {
+        await api.updateMeal({
+          mealId: existing.details.meal.id,
+          name: name.trim(),
+          description: desc.trim() || undefined,
+          mealType: type,
+          deadlineAt: timeToMinutes(deadline),
+          foodId,
+        });
+      } else {
+        await api.createMeal({
+          planId: plan.id,
+          weekday,
+          name: name.trim(),
+          description: desc.trim() || undefined,
+          mealType: type,
+          deadlineAt: timeToMinutes(deadline),
+          foodId,
+        });
+      }
+      onSaved();
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div
+        className="bg-base-100 border-[3px] border-base-content shadow-[6px_6px_0_var(--color-base-content)] w-full max-w-lg max-h-[90vh] overflow-y-auto overflow-x-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-6 space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="text-3xl shrink-0">{MEAL_EMOJI[type] ?? "🍽"}</span>
+            <h2 className="text-xl font-bold break-words min-w-0">
+              {existing ? t("week.editMeal") : t("week.newMeal")}{" "}
+              <span className="opacity-50 font-normal">· {weekdayName(weekday)}</span>
+            </h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="form-control md:col-span-2">
+              <label className="label">
+                <span className="label-text">{t("common.name")}</span>
+              </label>
+              <input
+                className="input input-bordered w-full"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("week.type")}</span>
+              </label>
+              <select
+                className="select select-bordered w-full"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
+                <option value="breakfast">🌅 {t("week.mealTypes.breakfast")}</option>
+                <option value="lunch">☀️ {t("week.mealTypes.lunch")}</option>
+                <option value="dinner">🌙 {t("week.mealTypes.dinner")}</option>
+                <option value="snack">🍪 {t("week.mealTypes.snack")}</option>
+              </select>
+            </div>
+            <div className="form-control">
+              <label className="label">
+                <span className="label-text">{t("week.readyTime")}</span>
+              </label>
+              <input
+                type="time"
+                className="input input-bordered w-full"
+                dir="ltr"
+                value={deadline}
+                onChange={(e) => setDeadline(e.target.value)}
+              />
+            </div>
+            <div className="form-control md:col-span-2">
+              <label className="label">
+                <span className="label-text">{t("week.food")}</span>
+              </label>
+              {foods.length === 0 ? (
+                <div className="text-sm opacity-60">{t("week.noFoodsYet")}</div>
+              ) : (
+                <select
+                  className="select select-bordered w-full"
+                  value={foodId}
+                  onChange={(e) => setFoodId(Number(e.target.value))}
+                >
+                  {foods.map((f) => (
+                    <option key={f.id} value={f.id}>
+                      {f.name} ({f.maxDuration}m)
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+            <div className="form-control md:col-span-2">
+              <label className="label">
+                <span className="label-text">{t("common.description")}</span>
+              </label>
+              <textarea
+                className="textarea textarea-bordered w-full"
+                rows={2}
+                value={desc}
+                onChange={(e) => setDesc(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {err && <div className="alert alert-error text-sm">{err}</div>}
+
+          <div className="flex justify-end gap-2">
+            <button className="btn btn-ghost btn-sm" onClick={onClose}>
+              {t("common.cancel")}
+            </button>
+            <button className="btn btn-primary btn-sm" onClick={save} disabled={busy}>
+              {busy ? <span className="loading loading-spinner loading-xs" /> : t("common.save")}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+===== index.css =====
+@import "tailwindcss";
+
+/* ============================================================
+   DaisyUI — register only our two custom themes
+   ============================================================ */
+@plugin "daisyui" {
+  themes: neobrutalism --default, neobrutalism-dark --prefersdark;
+}
+
+/* ============================================================
+   Neo Brutalism — light (default)
+   ============================================================ */
+@plugin "daisyui/theme" {
+  name: "neobrutalism";
+  default: true;
+  prefersdark: false;
+  color-scheme: light;
+
+  /* Base — off-white / stark black text */
+  --color-base-100: #FDF8F5;
+  --color-base-200: #F4F4F0;
+  --color-base-300: #E8E4DF;
+  --color-base-content: #000000;
+
+  /* Primary — bright yellow */
+  --color-primary: #FFDC58;
+  --color-primary-content: #000000;
+
+  /* Secondary — bright cyan */
+  --color-secondary: #00E5FF;
+  --color-secondary-content: #000000;
+
+  /* Accent — hot coral */
+  --color-accent: #FF3366;
+  --color-accent-content: #FFFFFF;
+
+  /* Neutral — stark black */
+  --color-neutral: #000000;
+  --color-neutral-content: #FFFFFF;
+
+  /* Semantic */
+  --color-info: #00B3FF;
+  --color-info-content: #000000;
+  --color-success: #00C853;
+  --color-success-content: #000000;
+  --color-warning: #FFDC58;
+  --color-warning-content: #000000;
+  --color-error: #FF3366;
+  --color-error-content: #FFFFFF;
+
+  /* Neo Brutalism geometry — square corners */
+  --radius-selector: 0rem;
+  --radius-field: 0rem;
+  --radius-box: 0rem;
+}
+
+/* ============================================================
+   Neo Brutalism — dark (auto-applied on prefers-color-scheme)
+   ============================================================ */
+@plugin "daisyui/theme" {
+  name: "neobrutalism-dark";
+  default: false;
+  prefersdark: true;
+  color-scheme: dark;
+
+  --color-base-100: #0A0A0A;
+  --color-base-200: #141414;
+  --color-base-300: #1F1F1F;
+  --color-base-content: #FFFFFF;
+
+  --color-primary: #FFDC58;
+  --color-primary-content: #000000;
+
+  --color-secondary: #00E5FF;
+  --color-secondary-content: #000000;
+
+  --color-accent: #FF3366;
+  --color-accent-content: #FFFFFF;
+
+  --color-neutral: #FFFFFF;
+  --color-neutral-content: #000000;
+
+  --color-info: #00B3FF;
+  --color-info-content: #000000;
+  --color-success: #00C853;
+  --color-success-content: #000000;
+  --color-warning: #FFDC58;
+  --color-warning-content: #000000;
+  --color-error: #FF3366;
+  --color-error-content: #FFFFFF;
+
+  --radius-selector: 0rem;
+  --radius-field: 0rem;
+  --radius-box: 0rem;
+}
+
+/* ============================================================
+   Neo Brutalism base — hard borders + zero-blur shadows
+   ============================================================ */
+@layer base {
+  /* Every interactive card, button, input, and modal gets the look.
+     Borders and shadows reference --color-base-content so they stay
+     black in the light theme and white in the dark theme automatically
+     (no [data-theme=...] selectors needed). */
+  .btn,
+  .card,
+  .input,
+  .select,
+  .textarea,
+  .modal-box,
+  .alert,
+  .badge,
+  .tabs-box,
+  .menu,
+  .dropdown-content {
+    border: 3px solid var(--color-base-content);
+    border-radius: 0;
+  }
+
+  .badge {
+    @apply px-2!;
+  }
+
+  /* Hard shadow on cards, modals and buttons */
+  .card,
+  .modal-box,
+  .btn {
+    box-shadow: 6px 6px 0 var(--color-base-content);
+  }
+
+  /* Press effect — translate down and remove shadow */
+  .btn:active {
+    transform: translate(6px, 6px);
+    box-shadow: 0 0 0 var(--color-base-content);
+  }
+
+  /* Inputs sit inside the aesthetic too */
+  .input,
+  .select,
+  .textarea {
+    box-shadow: 4px 4px 0 var(--color-base-content);
+  }
+}
+
+/* ============================================================
+   Fonts (unchanged — Quicksand / Mikhak)
+   ============================================================ */
+@font-face {
+  font-family: 'Quicksand';
+  src: url('./assets/fonts/Quicksand-Regular.ttf') format('truetype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Quicksand';
+  src: url('./assets/fonts/Quicksand-Bold.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mikhak';
+  src: url('./assets/fonts/Mikhak-Regular.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: 'Mikhak';
+  src: url('./assets/fonts/Mikhak-Bold.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  padding-top: var(--safe-area-inset-top, 0px);
+  padding-bottom: var(--safe-area-inset-bottom, 0px);
+  padding-left: var(--safe-area-inset-left, 0px);   /* if the fork provides it */
+  padding-right: var(--safe-area-inset-right, 0px); /* if the fork provides it */
+}
+
+html,
+body,
+#root {
+  height: 100svh !important;
+  margin: 0;
+  font-family: 'Quicksand', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+body {
+  position: fixed;
+}
+#root {
+  height: 100% !important;
+  overflow-y: auto;
+}
+
+html[lang="fa"],
+html[lang="fa"] body,
+html[lang="fa"] #root,
+html[lang="ar"],
+html[lang="ar"] body,
+html[lang="ar"] #root {
+  font-family: 'Mikhak', 'Quicksand', ui-sans-serif, system-ui, sans-serif;
+}
+
+===== lib/aiGuide.ts =====
+export const AI_IMPORT_GUIDE = `# AI Import Guide for CookPlans
+
+You are helping the user generate a JSON bundle that can be pasted into the CookPlans **Import** page.
+
+## Output Rules
+
+- Return **only** a single valid JSON object. No markdown fences, no prose, no trailing commentary.
+- Every referenced slug must exist inside the same payload (plans by \`planSlug\`, food by \`foodSlug\`).
+- **Each meal references exactly one food.** A day can have many meals.
+- All times and durations are **integers in minutes**.
+
+## Schema
+
+\`\`\`json
+{
+  "plans": [
+    {
+      "name": "My Week",
+      "slug": "my-week",
+      "description": "optional",
+      "isActive": true,
+      "startWeekday": 6
+    }
+  ],
+  "foods": [
+    {
+      "name": "Omelette",
+      "slug": "omelette",
+      "description": "optional",
+      "minDuration": 6,
+      "maxDuration": 10,
+      "steps": [
+        { "name": "Whisk eggs", "duration": 2, "minDuration": 1, "maxDuration": 3, "offsetTime": 0 }
+      ]
+    }
+  ],
+  "meals": [
+    {
+      "planSlug": "my-week",
+      "weekday": 1,
+      "name": "Monday Omelette",
+      "mealType": "breakfast",
+      "deadlineAt": 480,
+      "foodSlug": "omelette"
+    }
+  ]
+}
+\`\`\`
+
+## Field Reference
+
+### Plan
+| Field | Type | Notes |
+|---|---|---|
+| \`name\` | string | required |
+| \`slug\` | string | required, unique |
+| \`description\` | string? | optional |
+| \`isActive\` | bool | only one active plan kept |
+| \`startWeekday\` | int | 0=Sun…6=Sat. Region-aware (Iran: 6=Saturday). Default 0. |
+
+### Food
+| Field | Type | Notes |
+|---|---|---|
+| \`name\`, \`slug\` | string | required, slug unique |
+| \`description\` | string? | optional |
+| \`minDuration\`, \`maxDuration\` | int | minutes |
+| \`steps\` | array | optional |
+
+### FoodStep
+| Field | Type | Notes |
+|---|---|---|
+| \`name\` | string | required |
+| \`description\` | string? | optional |
+| \`duration\`, \`minDuration\`, \`maxDuration\` | int | minutes |
+| \`offsetTime\` | int | minutes from when cooking starts |
+
+### Meal
+| Field | Type | Notes |
+|---|---|---|
+| \`planSlug\` | string | must match a plan slug in payload |
+| \`weekday\` | int | 0=Sun…6=Sat |
+| \`name\` | string | required. Keep unique per (plan, weekday). |
+| \`description\` | string? | optional |
+| \`mealType\` | string | \`breakfast\` | \`lunch\` | \`dinner\` | \`snack\` |
+| \`deadlineAt\` | int | minutes from midnight. 420 = 7:00 AM, 1140 = 7:00 PM. |
+| \`foodSlug\` | string | must reference \`foods[].slug\` |
+
+## Time reference
+
+\`0\` = 12:00 AM, \`360\` = 6:00 AM, \`420\` = 7:00 AM, \`480\` = 8:00 AM,
+\`720\` = 12:00 PM, \`780\` = 1:00 PM, \`1080\` = 6:00 PM, \`1140\` = 7:00 PM.
+
+## Import behaviour
+
+- Plans/foods with existing \`slug\` are **skipped**.
+- Meals duplicate by \`(planSlug, weekday, name)\` are **skipped** with a warning.
+- Invalid \`mealType\` or \`weekday\` are **skipped** with a warning.
+- Runs in a single transaction.
+`;
+
+===== lib/alarmScheduler.ts =====
+import { invoke } from "@tauri-apps/api/core";
+
+export interface ScheduleAlarmArgs {
+  id: number;
+  triggerAtMillis: number;
+  title: string;
+  body: string;
+  stepName?: string;
+  foodName?: string;
+  dismissLabel?: string;
+}
+
+export interface PermissionsStatus {
+  notificationsGranted: boolean;
+  exactAlarmGranted: boolean;
+  fullScreenIntentGranted: boolean;
+}
+
+export const alarmScheduler = {
+  schedule: (args: ScheduleAlarmArgs) =>
+    invoke<void>("plugin:alarm-scheduler|schedule", { args }),
+  cancel: (id: number) =>
+    invoke<void>("plugin:alarm-scheduler|cancel", { args: { id } }),
+  cancelAll: () =>
+    invoke<void>("plugin:alarm-scheduler|cancel_all"),
+  checkPermissions: () =>
+    invoke<PermissionsStatus>("plugin:alarm-scheduler|check_permissions"),
+  requestNotificationPermission: () =>
+    invoke<void>("plugin:alarm-scheduler|request_notification_permission"),
+};
+
+export function hashId(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h | 0);
+}
+
+===== lib/api.ts =====
+import { invoke } from "@tauri-apps/api/core";
+import type {
+  Plan,
+  Meal,
+  Food,
+  FoodStep,
+  ScheduledStep,
+  ImportPayload,
+  ImportResult,
+  PlanMealDetail,
+  MealPlanDetails,
+} from "./types";
+
+export const api = {
+  listPlans: () => invoke<Plan[]>("list_plans"),
+  createPlan: (input: {
+    name: string;
+    description?: string;
+    slug: string;
+    startWeekday: number;
+  }) => invoke<Plan>("create_plan", { input }),
+  updatePlan: (input: {
+    id: number;
+    name: string;
+    description?: string;
+    slug: string;
+    startWeekday: number;
+  }) => invoke<void>("update_plan", { input }),
+  deletePlan: (id: number) => invoke<void>("delete_plan", { id }),
+  setActivePlan: (id: number) => invoke<void>("set_active_plan", { id }),
+
+  getPlanWeekDetails: (planId: number) =>
+    invoke<PlanMealDetail[]>("get_plan_week_details", { planId }),
+  getMeal: (mealId: number) => invoke<Meal>("get_meal", { mealId }),
+  getMealPlanDetails: (mealId: number) =>
+    invoke<MealPlanDetails>("get_meal_plan_details", { mealId }),
+  createMeal: (input: {
+    planId: number;
+    weekday: number;
+    name: string;
+    description?: string;
+    mealType: string;
+    deadlineAt: number;
+    foodId: number;
+  }) => invoke<Meal>("create_meal", { input }),
+  updateMeal: (input: {
+    mealId: number;
+    name: string;
+    description?: string;
+    mealType: string;
+    deadlineAt: number;
+    foodId: number;
+  }) => invoke<Meal>("update_meal", { input }),
+  deleteMeal: (mealId: number) => invoke<void>("delete_meal", { mealId }),
+
+  listFoods: () => invoke<Food[]>("list_foods"),
+  getFood: (id: number) => invoke<Food>("get_food", { id }),
+  createFood: (input: {
+    name: string;
+    slug: string;
+    description?: string;
+    minDuration: number;
+    maxDuration: number;
+  }) => invoke<Food>("create_food", { input }),
+  updateFood: (input: {
+    id: number;
+    name: string;
+    slug: string;
+    description?: string;
+    minDuration: number;
+    maxDuration: number;
+  }) => invoke<void>("update_food", { input }),
+  deleteFood: (id: number) => invoke<void>("delete_food", { id }),
+
+  listStepsForFood: (foodId: number) =>
+    invoke<FoodStep[]>("list_steps_for_food", { foodId }),
+  createStep: (input: {
+    foodId: number;
+    name: string;
+    description?: string;
+    duration: number;
+    minDuration: number;
+    maxDuration: number;
+    offsetTime: number;
+  }) => invoke<FoodStep>("create_step", { input }),
+  updateStep: (input: {
+    id: number;
+    name: string;
+    description?: string;
+    duration: number;
+    minDuration: number;
+    maxDuration: number;
+    offsetTime: number;
+  }) => invoke<void>("update_step", { input }),
+  deleteStep: (id: number) => invoke<void>("delete_step", { id }),
+
+  computeMealSchedule: (mealId: number) =>
+    invoke<ScheduledStep[]>("compute_meal_schedule", { mealId }),
+
+  importData: (payload: ImportPayload) =>
+    invoke<ImportResult>("import_data", { payload }),
+};
+
+===== lib/i18n.tsx =====
+import React, { createContext, useContext, useEffect, useState } from "react";
+import en from "../locales/en.json";
+import fa from "../locales/fa.json";
+
+export type Locale = "en" | "fa";
+
+const dicts: Record<Locale, any> = { en, fa };
+
+interface I18nCtx {
+  locale: Locale;
+  setLocale: (l: Locale) => void;
+  t: (key: string, vars?: Record<string, string | number>) => string;
+  weekdayName: (day: number) => string;
+  weekdayShortName: (day: number) => string;
+  formatTime: (minutes: number | null | undefined) => string;
+}
+
+const Ctx = createContext<I18nCtx | null>(null);
+
+const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+const WEEKDAY_SHORT_KEYS = [
+  "sunShort",
+  "monShort",
+  "tueShort",
+  "wedShort",
+  "thuShort",
+  "friShort",
+  "satShort",
+];
+
+function get(obj: any, path: string): any {
+  return path.split(".").reduce((a, k) => (a == null ? undefined : a[k]), obj);
+}
+
+function interpolate(s: string, vars?: Record<string, string | number>) {
+  if (!vars) return s;
+  return s.replace(/\{\{(\w+)\}\}/g, (_, k) => String(vars[k] ?? ""));
+}
+
+export function I18nProvider({ children }: { children: React.ReactNode }) {
+  const [locale, setLocaleState] = useState<Locale>(() => {
+    try {
+      const saved = localStorage.getItem("cookplans.locale");
+      return saved === "fa" ? "fa" : "en";
+    } catch {
+      return "en";
+    }
+  });
+
+  const setLocale = (l: Locale) => {
+    setLocaleState(l);
+    try {
+      localStorage.setItem("cookplans.locale", l);
+    } catch {}
+  };
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = locale === "fa" ? "rtl" : "ltr";
+  }, [locale]);
+
+  const t = (key: string, vars?: Record<string, string | number>) => {
+    const d = dicts[locale];
+    const val = get(d, key) ?? get(dicts.en, key) ?? key;
+    return interpolate(String(val), vars);
+  };
+
+  const weekdayName = (day: number) =>
+    t(`weekdays.${WEEKDAY_KEYS[((day % 7) + 7) % 7]}`);
+  const weekdayShortName = (day: number) =>
+    t(`weekdays.${WEEKDAY_SHORT_KEYS[((day % 7) + 7) % 7]}`);
+
+  const formatTime = (minutes: number | null | undefined) => {
+    if (minutes == null) return "—";
+    const mm = ((Math.round(minutes) % 1440) + 1440) % 1440;
+    const h = Math.floor(mm / 60);
+    const m = mm % 60;
+    if (locale === "fa") {
+      return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    }
+    const ampm = h < 12 ? "AM" : "PM";
+    const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+    return `${h12}:${String(m).padStart(2, "0")} ${ampm}`;
+  };
+
+  return (
+    <Ctx.Provider value={{ locale, setLocale, t, weekdayName, weekdayShortName, formatTime }}>
+      {children}
+    </Ctx.Provider>
+  );
+}
+
+export function useI18n() {
+  const ctx = useContext(Ctx);
+  if (!ctx) throw new Error("useI18n must be used inside I18nProvider");
+  return ctx;
+}
+
+===== lib/notifications.ts =====
+import {
+  cancel,
+  createChannel,
+  Importance,
+  pending,
+  Schedule,
+  sendNotification,
+  Visibility,          // ← added
+} from "@tauri-apps/plugin-notification";
+
+const CHANNEL_ID = "cookplans-reminders";
+const CHANNEL_NAME = "Cooking reminders";
+const CHANNEL_DESCRIPTION = "Step-by-step cooking alerts";
+
+let channelReady = false;
+
+/**
+ * Ensure the high-importance Android notification channel exists.
+ * Importance.High gives us the system default sound + heads-up banner.
+ * Visibility.Public shows content on the lock screen.
+ * Safe to call multiple times; it is a no-op after the first success.
+ */
+export async function ensureCookingChannel(): Promise<void> {
+  if (channelReady) return;
+  try {
+    await createChannel({
+      id: CHANNEL_ID,
+      name: CHANNEL_NAME,
+      description: CHANNEL_DESCRIPTION,
+      importance: Importance.High,
+      visibility: Visibility.Public,   // ← fixed: Visibility, not Importance
+      vibration: true,
+    });
+    channelReady = true;
+  } catch (e) {
+    console.warn("[notifications] createChannel failed", e);
+  }
+}
+
+function hashId(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) {
+    h ^= s.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h | 0);
+}
+
+export interface StepReminderParams {
+  fireAt: Date;
+  key: string;
+  title: string;
+  body: string;
+  largeBody: string;
+}
+
+/**
+ * Schedule an OS-level notification via Android's AlarmManager.
+ * Fires even if the app is closed or the screen is locked.
+ * allowWhileIdle so Doze mode doesn't defer it by hours.
+ */
+export async function scheduleStepReminder(p: StepReminderParams): Promise<void> {
+  await ensureCookingChannel();
+  const id = hashId(p.key);
+  try {
+    await sendNotification({
+      id,
+      title: p.title,
+      body: p.body,
+      largeBody: p.largeBody,
+      channelId: CHANNEL_ID,
+      schedule: Schedule.at(p.fireAt, false, true),
+    });
+  } catch (e) {
+    console.warn("[notifications] schedule failed", e);
+  }
+}
+
+/**
+ * Remove every pending (not-yet-fired) scheduled notification.
+ * Called before rescheduling so the OS queue matches the DB.
+ */
+export async function cancelAllReminders(): Promise<void> {
+  try {
+    const armed = await pending();
+    if (armed.length) {
+      // ← fixed: cancel() expects number[] — map to IDs
+      await cancel(armed.map((n) => n.id));
+    }
+  } catch (e) {
+    console.warn("[notifications] cancelAll failed", e);
+  }
+}
+
+/**
+ * Return the next Date at the given weekday (0=Sun..6=Sat) and time
+ * (minutes from midnight). Skips to next week if it has already passed.
+ */
+export function nextWeekdayOccurrence(
+  targetDow: number,
+  minutesFromMidnight: number
+): Date {
+  const now = new Date();
+  const target = new Date(now);
+  target.setHours(0, 0, 0, 0);
+  const diff = (targetDow - now.getDay() + 7) % 7;
+  target.setDate(now.getDate() + diff);
+  target.setHours(
+    Math.floor(minutesFromMidnight / 60),
+    minutesFromMidnight % 60,
+    0,
+    0
+  );
+  if (target <= now) target.setDate(target.getDate() + 7);
+  return target;
+}
+
+===== lib/tauri.ts =====
+export function isTauri(): boolean {
+  return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+===== lib/types.ts =====
+export interface Plan {
+  id: number;
+  name: string;
+  description: string | null;
+  slug: string;
+  isActive: boolean;
+  startWeekday: number;
+}
+
+export interface Meal {
+  id: number;
+  name: string;
+  description: string | null;
+  mealType: string;
+  deadlineAt: number;
+  startedAt: number | null;
+  foodId: number;
+}
+
+export interface Food {
+  id: number;
+  name: string;
+  slug: string;
+  description: string | null;
+  minDuration: number;
+  maxDuration: number;
+}
+
+export interface FoodStep {
+  id: number;
+  foodId: number;
+  name: string;
+  description: string | null;
+  duration: number;
+  minDuration: number;
+  maxDuration: number;
+  offsetTime: number;
+}
+
+export interface ScheduledStep {
+  foodName: string;
+  stepName: string;
+  stepDescription: string | null;
+  notifyAtMinutes: number;
+  duration: number;
+}
+
+export interface MealPlanStep {
+  id: number;
+  name: string;
+  description: string | null;
+  startAt: number;
+  endAt: number;
+  duration: number;
+  offsetTime: number;
+}
+
+export interface MealPlanDetails {
+  meal: Meal;
+  food: Food;
+  cookStartAt: number;
+  cookEndAt: number;
+  steps: MealPlanStep[];
+}
+
+export interface PlanMealDetail {
+  planMealId: number;
+  weekday: number;
+  details: MealPlanDetails;
+}
+
+export interface MealWithPlan {
+  planMealId: number;
+  weekday: number;
+  meal: Meal;
+}
+
+export interface ImportStep {
+  name: string;
+  description?: string;
+  duration?: number;
+  minDuration?: number;
+  maxDuration?: number;
+  offsetTime?: number;
+}
+
+export interface ImportFood {
+  name: string;
+  slug: string;
+  description?: string;
+  minDuration?: number;
+  maxDuration?: number;
+  steps?: ImportStep[];
+}
+
+export interface ImportPlan {
+  name: string;
+  slug: string;
+  description?: string;
+  isActive?: boolean;
+  startWeekday?: number;
+}
+
+export interface ImportMeal {
+  planSlug: string;
+  weekday: number;
+  name: string;
+  description?: string;
+  mealType: string;
+  deadlineAt: number;
+  foodSlug: string;
+}
+
+export interface ImportPayload {
+  plans?: ImportPlan[];
+  foods?: ImportFood[];
+  meals?: ImportMeal[];
+}
+
+export interface ImportResult {
+  plansCreated: number;
+  plansSkipped: number;
+  foodsCreated: number;
+  foodsSkipped: number;
+  mealsCreated: number;
+  mealsSkipped: number;
+  errors: string[];
+}
+
+export type MealType = "breakfast" | "lunch" | "dinner" | "snack";
+
+export const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+export const FULL_WEEKDAYS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+
+export const MEAL_EMOJI: Record<string, string> = {
+  breakfast: "🌅",
+  lunch: "☀️",
+  dinner: "🌙",
+  snack: "🍪",
+};
+
+export function minutesToTime(m: number | null | undefined): string {
+  if (m == null) return "—";
+  const mm = ((m % 1440) + 1440) % 1440;
+  const h = Math.floor(mm / 60);
+  const min = mm % 60;
+  const ampm = h < 12 ? "AM" : "PM";
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(min).padStart(2, "0")} ${ampm}`;
+}
+
+export function timeToMinutes(t: string): number {
+  const [h, m] = t.split(":").map(Number);
+  return h * 60 + m;
+}
+
+export function minutesToInput(m: number): string {
+  const mm = ((m % 1440) + 1440) % 1440;
+  return `${String(Math.floor(mm / 60)).padStart(2, "0")}:${String(mm % 60).padStart(2, "0")}`;
+}
+
+===== lib/useTheme.ts =====
+import { useEffect, useState } from "react";
+
+export type Theme = "neobrutalism" | "neobrutalism-dark";
+
+const STORAGE_KEY = "cookplans.theme";
+
+export function useTheme() {
+  const [theme, setTheme] = useState<Theme>(() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === "neobrutalism" || stored === "neobrutalism-dark") {
+        return stored;
+      }
+    } catch {}
+    return window.matchMedia("(prefers-color-scheme: dark)").matches
+      ? "neobrutalism-dark"
+      : "neobrutalism";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-theme", theme);
+    try {
+      localStorage.setItem(STORAGE_KEY, theme);
+    } catch {}
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((t) =>
+      t === "neobrutalism" ? "neobrutalism-dark" : "neobrutalism"
+    );
+  };
+
+  return { theme, toggleTheme, setTheme };
+}
+
+===== locales/en.json =====
+{
+  "alarms": {
+    "toggle": "Alarms",
+    "off": "Off",
+    "on": "On"
+  },
+  "permissions": {
+    "title": "Grant alarm permissions",
+    "body": "CookPlans needs these permissions so alarms sound even when the app is closed.",
+    "notifications": "Notifications",
+    "exactAlarm": "Exact alarms",
+    "fullScreenIntent": "Full-screen intent",
+    "grant": "Grant",
+    "granted": "Granted",
+    "openSettings": "Open settings"
+  },
+  "notificationContent": {
+    "stepTitle": "{{stepName}}",
+    "stepBody": "{{foodName}} · {{duration}}m",
+    "stepLargeBody": "{{foodName}} · {{mealName}} · {{stepName}} ({{duration}}m)"
+  },
+  "notifications": {
+    "title": "Enable cooking reminders",
+    "body": "CookPlans can remind you exactly when each step starts, so nothing burns while you wait.",
+    "rationale": "Android needs your permission before we can send step reminders.",
+    "deniedBody": "Notifications are disabled. To re‑enable, long‑press the CookPlans icon → App info → Notifications → allow all.",
+    "enable": "Enable notifications"
+  },
+  "common": {
+    "cancel": "Cancel",
+    "save": "Save",
+    "create": "Create",
+    "edit": "Edit",
+    "delete": "Delete",
+    "close": "Close",
+    "back": "Back",
+    "clear": "Clear",
+    "name": "Name",
+    "description": "Description",
+    "nameRequired": "Name is required",
+    "loading": "Loading…",
+    "now": "Now",
+    "add": "Add",
+    "language": "Language",
+    "dismiss": "Dismiss"
+  },
+  "units": {
+    "min": "min"
+  },
+  "nav": {
+    "plans": "Plans",
+    "foods": "Foods",
+    "import": "Import"
+  },
+  "weekdays": {
+    "sun": "Sunday",
+    "mon": "Monday",
+    "tue": "Tuesday",
+    "wed": "Wednesday",
+    "thu": "Thursday",
+    "fri": "Friday",
+    "sat": "Saturday",
+    "sunShort": "Sun",
+    "monShort": "Mon",
+    "tueShort": "Tue",
+    "wedShort": "Wed",
+    "thuShort": "Thu",
+    "friShort": "Fri",
+    "satShort": "Sat"
+  },
+  "plans": {
+    "title": "Plans",
+    "newPlan": "+ New Plan",
+    "empty": "No plans yet. Create one or import a JSON bundle.",
+    "active": "Active",
+    "setActive": "Set as Active",
+    "startsOn": "Starts {{day}}",
+    "backToPlans": "← Plans",
+    "newPlanTitle": "New Plan",
+    "weekStartsOn": "Week starts on",
+    "deleteConfirm": "Delete plan \"{{name}}\"?",
+    "deleteActiveConfirm": "This plan is active. Delete \"{{name}}\" and all its meals?",
+    "deleted": "Plan deleted"
+  },
+  "week": {
+    "weekStartsOn": "Week starts on:",
+    "dayMeals": "{{day}}'s meals",
+    "addMeal": "+ Add Meal",
+    "noMeals": "No meals planned for {{day}}.",
+    "nextStep": "Next step",
+    "currentMeal": "Now cooking",
+    "mealLabel": "Meal",
+    "in": "in",
+    "at": "at",
+    "atFormat": "at {{time}} · {{duration}}m",
+    "readyAt": "🍽 ready {{time}}",
+    "startAt": "🔥 start {{time}}",
+    "editMeal": "Edit Meal",
+    "newMeal": "New Meal",
+    "type": "Type",
+    "readyTime": "Ready at",
+    "food": "Food",
+    "foods": "Foods",
+    "noFoodsYet": "No foods yet — create one in the Foods tab.",
+    "pickFood": "Pick a food — you need at least one food in Foods tab.",
+    "deleteMealConfirm": "Delete meal \"{{name}}\"?",
+    "mealSingular": "meal",
+    "mealPlural": "meals",
+    "mealTypes": {
+      "breakfast": "Breakfast",
+      "lunch": "Lunch",
+      "dinner": "Dinner",
+      "snack": "Snack"
+    }
+  },
+  "foods": {
+    "title": "Foods",
+    "newFood": "+ New Food",
+    "empty": "No foods yet. Create your first food or import a bundle.",
+    "newFoodTitle": "New Food",
+    "editFoodTitle": "Edit Food",
+    "minDuration": "Min duration (m)",
+    "maxDuration": "Max duration (m)",
+    "durationRange": "{{min}}–{{max}} min"
+  },
+  "foodDetail": {
+    "backToFoods": "← Foods",
+    "steps": "Steps",
+    "normal": "Normal",
+    "max": "Max",
+    "min": "Min",
+    "previewFrom": "Preview from",
+    "addStep": "+ Add Step",
+    "noSteps": "No steps yet.",
+    "offset": "offset {{value}}m",
+    "deleteStepConfirm": "Delete this step?",
+    "deleteFoodConfirm": "Delete this food and all its steps?"
+  },
+  "step": {
+    "newStep": "New Step",
+    "editStep": "Edit Step",
+    "offset": "Offset (m)",
+    "duration": "Duration (m)",
+    "minDuration": "Min duration (m)",
+    "maxDuration": "Max duration (m)"
+  },
+  "import": {
+    "title": "Import Plan Bundle",
+    "description": "Paste or drop a JSON bundle of plans, foods and meals. Use the AI helper below to give your AI agent the exact schema it needs.",
+    "aiHelper": "AI Helper",
+    "aiHelperDesc": "Copy the guide, paste it to your AI agent, then paste the JSON it returns below.",
+    "copyGuide": "📋 Copy AI Guide",
+    "copyExample": "Copy example JSON",
+    "guideCopied": "AI guide copied — paste it into your AI agent.",
+    "exampleCopied": "Example JSON copied.",
+    "copyFailed": "Copy failed",
+    "pasteJson": "Paste JSON",
+    "loadExample": "Load example",
+    "uploadJson": "Upload .json",
+    "jsonValid": "JSON valid",
+    "plansCount": "{{count}} plans",
+    "foodsCount": "{{count}} foods",
+    "mealsCount": "{{count}} meals",
+    "import": "Import",
+    "importComplete": "Import complete",
+    "plansCreated": "Plans created",
+    "plansSkipped": "Plans skipped",
+    "foodsCreated": "Foods created",
+    "foodsSkipped": "Foods skipped",
+    "mealsCreated": "Meals created",
+    "mealsSkipped": "Meals skipped",
+    "warnings": "{{count}} warning(s)",
+    "quickRules": "Quick rules",
+    "ruleWeekday": "0 = Sun … 6 = Sat",
+    "ruleStartWeekday": "Plan week start day (e.g. 6 = Sat for Iran)",
+    "ruleDeadline": "Minutes from midnight (420 = 7:00 AM)",
+    "ruleDurations": "All durations/offsets in minutes",
+    "ruleSlugs": "Slugs are unique per type",
+    "rulePlanSlug": "Meals reference plans by planSlug",
+    "ruleFoodSlug": "Meals reference food by foodSlug",
+    "ruleOneFood": "Each meal has exactly one food; a day can have many meals"
+  },
+  "web": {
+    "title": "Browser preview mode",
+    "body": "You opened the Vite dev server directly. The real app runs inside the Tauri WebView, where the Rust backend, SQLite and native notifications are available.",
+    "stopAndRun": "Stop this dev server and run:"
+  }
+}
+
+===== locales/fa.json =====
+{
+  "alarms": {
+    "toggle": "آلارم‌ها",
+    "off": "خاموش",
+    "on": "روشن"
+  },
+  "permissions": {
+    "title": "اجازه‌های لازم برای آلارم",
+    "body": "برای اینکه آلارم‌ها حتی وقتی اپ بسته است صدا بدهند، این دسترسی‌ها لازم است.",
+    "notifications": "اعلان‌ها",
+    "exactAlarm": "آلارم دقیق",
+    "fullScreenIntent": "صفحه کامل",
+    "grant": "اجازه دادن",
+    "granted": "فعال",
+    "openSettings": "تنظیمات"
+  },
+  "notificationContent": {
+    "stepTitle": "{{stepName}}",
+    "stepBody": "{{foodName}} · {{duration}} دقیقه",
+    "stepLargeBody": "{{foodName}} · {{mealName}} · {{stepName}} ({{duration}} دقیقه)"
+  },
+  "notifications": {
+    "title": "فعال‌سازی نوتیفیکیشن های آشپزی",
+    "body": "CookPlans می‌تواند دقیقاً وقتی هر مرحله شروع می‌شود به شما یادآوری کند تا چیزی نسوزد.",
+    "rationale": "اندروید برای ارسال یادآورها به اجازه شما نیاز دارد.",
+    "deniedBody": "اعلان‌ها غیرفعال هستند. برای فعال‌سازی، آیکون CookPlans را نگه دارید → App info → Notifications → همه را فعال کنید.",
+    "enable": "فعال‌سازی اعلان‌ها"
+  },
+  "common": {
+    "cancel": "لغو",
+    "save": "ذخیره",
+    "create": "ایجاد",
+    "edit": "ویرایش",
+    "delete": "حذف",
+    "close": "بستن",
+    "back": "بازگشت",
+    "clear": "پاک کردن",
+    "name": "نام",
+    "description": "توضیحات",
+    "nameRequired": "نام الزامی است",
+    "loading": "در حال بارگذاری…",
+    "now": "الان",
+    "add": "افزودن",
+    "language": "زبان",
+    "dismiss": "بستن"
+  },
+  "units": {
+    "min": "دقیقه"
+  },
+  "nav": {
+    "plans": "برنامه‌ها",
+    "foods": "غذاها",
+    "import": "ورود داده"
+  },
+  "weekdays": {
+    "sun": "یکشنبه",
+    "mon": "دوشنبه",
+    "tue": "سه‌شنبه",
+    "wed": "چهارشنبه",
+    "thu": "پنجشنبه",
+    "fri": "جمعه",
+    "sat": "شنبه",
+    "sunShort": "یک‌ش",
+    "monShort": "دو‌ش",
+    "tueShort": "سه‌ش",
+    "wedShort": "چهارش",
+    "thuShort": "پنج‌ش",
+    "friShort": "جمعه",
+    "satShort": "شنبه"
+  },
+  "plans": {
+    "title": "برنامه‌ها",
+    "newPlan": "+ برنامه جدید",
+    "empty": "هنوز برنامه‌ای ندارید. یکی بسازید یا یک بسته JSON وارد کنید.",
+    "active": "فعال",
+    "setActive": "فعال کردن",
+    "startsOn": "شروع از {{day}}",
+    "backToPlans": "→ برنامه‌ها",
+    "newPlanTitle": "برنامه جدید",
+    "weekStartsOn": "هفته از این روز شروع می‌شود",
+    "deleteConfirm": "برنامه «{{name}}» حذف شود؟",
+    "deleteActiveConfirm": "این برنامه فعال است. «{{name}}» و همه وعده‌هایش حذف شوند؟",
+    "deleted": "برنامه حذف شد"
+  },
+  "week": {
+    "weekStartsOn": "هفته از این روز شروع می‌شود:",
+    "dayMeals": "وعده‌های {{day}}",
+    "addMeal": "+ وعده جدید",
+    "noMeals": "هیچ وعده‌ای برای {{day}} برنامه‌ریزی نشده.",
+    "nextStep": "مرحله بعدی",
+    "currentMeal": "در حال پخت",
+    "mealLabel": "وعده",
+    "in": "تا",
+    "at": "ساعت",
+    "atFormat": "ساعت {{time}} · {{duration}} دقیقه",
+    "readyAt": "🍽 آماده {{time}}",
+    "startAt": "🔥 شروع {{time}}",
+    "editMeal": "ویرایش وعده",
+    "newMeal": "وعده جدید",
+    "type": "نوع",
+    "readyTime": "زمان آماده",
+    "food": "غذا",
+    "foods": "غذاها",
+    "noFoodsYet": "هنوز غذایی ندارید — از تب غذاها اضافه کنید.",
+    "pickFood": "یک غذا انتخاب کنید — حداقل یک غذا در تب غذاها لازم است.",
+    "deleteMealConfirm": "وعده «{{name}}» حذف شود؟",
+    "mealSingular": "وعده",
+    "mealPlural": "وعده‌ها",
+    "mealTypes": {
+      "breakfast": "صبحانه",
+      "lunch": "ناهار",
+      "dinner": "شام",
+      "snack": "میان‌وعده"
+    }
+  },
+  "foods": {
+    "title": "غذاها",
+    "newFood": "+ غذای جدید",
+    "empty": "هنوز غذایی ندارید. اولین غذای خود را بسازید یا یک بسته وارد کنید.",
+    "newFoodTitle": "غذای جدید",
+    "editFoodTitle": "ویرایش غذا",
+    "minDuration": "حداقل زمان (دقیقه)",
+    "maxDuration": "حداکثر زمان (دقیقه)",
+    "durationRange": "{{min}}–{{max}} دقیقه"
+  },
+  "foodDetail": {
+    "backToFoods": "→ غذاها",
+    "steps": "مراحل",
+    "normal": "معمولی",
+    "max": "حداکثر",
+    "min": "حداقل",
+    "previewFrom": "پیش‌نمایش از",
+    "addStep": "+ مرحله جدید",
+    "noSteps": "هنوز مرحله‌ای ندارید.",
+    "offset": "تأخیر {{value}} دقیقه",
+    "deleteStepConfirm": "این مرحله حذف شود؟",
+    "deleteFoodConfirm": "این غذا و همه مراحلش حذف شوند؟"
+  },
+  "step": {
+    "newStep": "مرحله جدید",
+    "editStep": "ویرایش مرحله",
+    "offset": "تأخیر (دقیقه)",
+    "duration": "مدت (دقیقه)",
+    "minDuration": "حداقل مدت (دقیقه)",
+    "maxDuration": "حداکثر مدت (دقیقه)"
+  },
+  "import": {
+    "title": "ورود بسته برنامه",
+    "description": "یک بسته JSON از برنامه‌ها، غذاها و وعده‌ها را بچسبانید یا رها کنید. از دستیار هوش مصنوعی زیر استفاده کنید تا دقیقاً ساختار مورد نیاز را به ایجنت بدهید.",
+    "aiHelper": "دستیار هوش مصنوعی",
+    "aiHelperDesc": "راهنما را کپی کنید، به ایجنت هوش مصنوعی بدهید، سپس JSON خروجی را پایین بچسبانید.",
+    "copyGuide": "📋 کپی راهنمای AI",
+    "copyExample": "کپی JSON نمونه",
+    "guideCopied": "راهنمای AI کپی شد — آن را به ایجنت خود بدهید.",
+    "exampleCopied": "JSON نمونه کپی شد.",
+    "copyFailed": "کپی ناموفق",
+    "pasteJson": "چسباندن JSON",
+    "loadExample": "بارگذاری نمونه",
+    "uploadJson": "بارگذاری .json",
+    "jsonValid": "JSON معتبر است",
+    "plansCount": "{{count}} برنامه",
+    "foodsCount": "{{count}} غذا",
+    "mealsCount": "{{count}} وعده",
+    "import": "ورود",
+    "importComplete": "ورود کامل شد",
+    "plansCreated": "برنامه‌های ساخته‌شده",
+    "plansSkipped": "برنامه‌های رد شده",
+    "foodsCreated": "غذاهای ساخته‌شده",
+    "foodsSkipped": "غذاهای رد شده",
+    "mealsCreated": "وعده‌های ساخته‌شده",
+    "mealsSkipped": "وعده‌های رد شده",
+    "warnings": "{{count}} هشدار",
+    "quickRules": "قوانین سریع",
+    "ruleWeekday": "۰ = یکشنبه … ۶ = شنبه",
+    "ruleStartWeekday": "روز شروع هفته (مثلاً ۶ = شنبه برای ایران)",
+    "ruleDeadline": "دقیقه از نیمه‌شب (۴۲۰ = ۷:۰۰ صبح)",
+    "ruleDurations": "همه مدت‌ها و تأخیرها به دقیقه",
+    "ruleSlugs": "اسلاگ‌ها به ازای هر نوع یکتا هستند",
+    "rulePlanSlug": "وعده‌ها به برنامه با planSlug ارجاع می‌دهند",
+    "ruleFoodSlug": "وعده‌ها به غذا با foodSlug ارجاع می‌دهند",
+    "ruleOneFood": "هر وعده دقیقاً یک غذا دارد؛ یک روز می‌تواند چند وعده داشته باشد"
+  },
+  "web": {
+    "title": "حالت پیش‌نمایش مرورگر",
+    "body": "شما سرور توسعه Vite را مستقیماً باز کردید. برنامه واقعی درون WebView تائوری اجرا می‌شود که در آن بک‌اند Rust، SQLite و نوتیفیکیشن‌های بومی در دسترس هستند.",
+    "stopAndRun": "این سرور توسعه را متوقف کنید و اجرا کنید:"
+  }
+}
+
+===== main.tsx =====
+import "@saurl/tauri-plugin-safe-area-insets-css-api";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import App from "./App";
+import "./index.css";
+import { I18nProvider } from "./lib/i18n";
+import { ConfirmProvider } from "./components/ConfirmDialog";
+
+ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
+  <React.StrictMode>
+    <I18nProvider>
+      <ConfirmProvider>
+        <App />
+      </ConfirmProvider>
+    </I18nProvider>
+  </React.StrictMode>
+);
+
+===== vite-env.d.ts =====
+/// <reference types="vite/client" />
+
+### SUMMARY ###
+Files included: 27
+Files skipped : 4

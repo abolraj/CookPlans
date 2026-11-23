@@ -1,48 +1,69 @@
 use tauri::{
-  plugin::{Builder, TauriPlugin},
-  Manager, Runtime,
+    plugin::{Builder, TauriPlugin},
+    AppHandle, Manager, Runtime, Wry,
 };
 
-pub use models::*;
-
-#[cfg(desktop)]
 mod desktop;
-#[cfg(mobile)]
-mod mobile;
-
-mod commands;
 mod error;
+mod mobile;
 mod models;
 
 pub use error::{Error, Result};
+pub use models::{AlarmArgs, RingingStatus};
 
 #[cfg(desktop)]
-use desktop::Alarm;
+pub use desktop::Alarm;
 #[cfg(mobile)]
-use mobile::Alarm;
+pub use mobile::Alarm;
 
-/// Extensions to [`tauri::App`], [`tauri::AppHandle`] and [`tauri::Window`] to access the alarm APIs.
 pub trait AlarmExt<R: Runtime> {
-  fn alarm(&self) -> &Alarm<R>;
+    fn alarm(&self) -> &Alarm<R>;
 }
 
-impl<R: Runtime, T: Manager<R>> crate::AlarmExt<R> for T {
-  fn alarm(&self) -> &Alarm<R> {
-    self.state::<Alarm<R>>().inner()
-  }
+impl<R: Runtime, T: Manager<R>> AlarmExt<R> for T {
+    fn alarm(&self) -> &Alarm<R> {
+        self.state::<Alarm<R>>().inner()
+    }
 }
 
-/// Initializes the plugin.
-pub fn init<R: Runtime>() -> TauriPlugin<R> {
-  Builder::new("alarm")
-    .invoke_handler(tauri::generate_handler![commands::ping])
-    .setup(|app, api| {
-      #[cfg(mobile)]
-      let alarm = mobile::init(app, api)?;
-      #[cfg(desktop)]
-      let alarm = desktop::init(app, api)?;
-      app.manage(alarm);
-      Ok(())
-    })
-    .build()
+#[tauri::command]
+async fn ring(app: AppHandle, args: AlarmArgs) -> Result<()> {
+    app.alarm().ring(args)
+}
+
+#[tauri::command]
+async fn dismiss(app: AppHandle) -> Result<()> {
+    app.alarm().dismiss()
+}
+
+#[tauri::command]
+async fn is_alarm_ringing(app: AppHandle) -> Result<RingingStatus> {
+    app.alarm().is_alarm_ringing()
+}
+
+#[tauri::command]
+async fn open_exact_alarm_settings(app: AppHandle) -> Result<()> {
+    app.alarm().open_exact_alarm_settings()
+}
+
+#[tauri::command]
+async fn open_full_screen_intent_settings(app: AppHandle) -> Result<()> {
+    app.alarm().open_full_screen_intent_settings()
+}
+
+pub fn init() -> TauriPlugin<Wry> {
+    Builder::<Wry>::new("alarm")
+        .invoke_handler(tauri::generate_handler![
+            ring,
+            dismiss,
+            is_alarm_ringing,
+            open_exact_alarm_settings,
+            open_full_screen_intent_settings,
+        ])
+        .setup(|app, api| {
+            let alarm = Alarm::new(app, api)?;
+            app.manage(alarm);
+            Ok(())
+        })
+        .build()
 }

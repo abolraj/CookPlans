@@ -1,4 +1,24 @@
 {
+  "alarms": {
+    "toggle": "آلارم‌ها",
+    "off": "خاموش",
+    "on": "روشن"
+  },
+  "permissions": {
+    "title": "اجازه‌های لازم برای آلارم",
+    "body": "برای اینکه آلارم‌ها حتی وقتی اپ بسته است صدا بدهند، این دسترسی‌ها لازم است.",
+    "notifications": "اعلان‌ها",
+    "exactAlarm": "آلارم دقیق",
+    "fullScreenIntent": "صفحه کامل",
+    "grant": "اجازه دادن",
+    "granted": "فعال",
+    "openSettings": "تنظیمات"
+  },
+  "notificationContent": {
+    "stepTitle": "{{stepName}}",
+    "stepBody": "{{foodName}} · {{duration}} دقیقه",
+    "stepLargeBody": "{{foodName}} · {{mealName}} · {{stepName}} ({{duration}} دقیقه)"
+  },
   "notifications": {
     "title": "فعال‌سازی نوتیفیکیشن های آشپزی",
     "body": "CookPlans می‌تواند دقیقاً وقتی هر مرحله شروع می‌شود به شما یادآوری کند تا چیزی نسوزد.",
@@ -21,7 +41,8 @@
     "loading": "در حال بارگذاری…",
     "now": "الان",
     "add": "افزودن",
-    "language": "زبان"
+    "language": "زبان",
+    "dismiss": "بستن"
   },
   "units": {
     "min": "دقیقه"

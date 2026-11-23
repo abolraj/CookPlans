@@ -12,6 +12,7 @@
     "notification:allow-request-permission",
     "notification:allow-check-permissions",
     "safe-area-insets-css:default",
-    "alarm:default"
+    "alarm:default",
+    "alarm-scheduler:default"
   ]
 }

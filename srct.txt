@@ -1,0 +1,1305 @@
+### FILES ###
+
+===== commands/foods.rs =====
+use crate::db::Db;
+use crate::models::*;
+use rusqlite::params;
+use tauri::State;
+
+fn row_to_food(row: &rusqlite::Row<'_>) -> rusqlite::Result<Food> {
+    Ok(Food {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        slug: row.get(2)?,
+        description: row.get(3)?,
+        min_duration: row.get(4)?,
+        max_duration: row.get(5)?,
+    })
+}
+
+fn row_to_step(row: &rusqlite::Row<'_>) -> rusqlite::Result<FoodStep> {
+    Ok(FoodStep {
+        id: row.get(0)?,
+        food_id: row.get(1)?,
+        name: row.get(2)?,
+        description: row.get(3)?,
+        duration: row.get(4)?,
+        min_duration: row.get(5)?,
+        max_duration: row.get(6)?,
+        offset_time: row.get(7)?,
+    })
+}
+
+#[tauri::command]
+pub fn list_foods(db: State<'_, Db>) -> AppResult<Vec<Food>> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare("SELECT id, name, slug, description, min_duration, max_duration FROM foods ORDER BY name")?;
+    let rows = stmt.query_map([], row_to_food)?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+#[tauri::command]
+pub fn get_food(id: i64, db: State<'_, Db>) -> AppResult<Food> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT id, name, slug, description, min_duration, max_duration FROM foods WHERE id = ?1",
+        [id],
+        row_to_food,
+    )
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn create_food(input: CreateFoodInput, db: State<'_, Db>) -> AppResult<Food> {
+    let conn = db.0.lock().unwrap();
+    conn.execute(
+        "INSERT INTO foods (name, slug, description, min_duration, max_duration) VALUES (?1, ?2, ?3, ?4, ?5)",
+        params![input.name, input.slug, input.description, input.min_duration, input.max_duration],
+    )?;
+    let id = conn.last_insert_rowid();
+    Ok(Food {
+        id,
+        name: input.name,
+        slug: input.slug,
+        description: input.description,
+        min_duration: input.min_duration,
+        max_duration: input.max_duration,
+    })
+}
+
+#[tauri::command]
+pub fn update_food(input: UpdateFoodInput, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute(
+        "UPDATE foods SET name = ?1, slug = ?2, description = ?3, min_duration = ?4, max_duration = ?5 WHERE id = ?6",
+        params![input.name, input.slug, input.description, input.min_duration, input.max_duration, input.id],
+    )?;
+
+    // Recompute meals.started_at for all meals using this food
+    let mut mstmt = conn.prepare("SELECT id, deadline_at FROM meals WHERE food_id = ?1")?;
+    let affected: Vec<(i64, i64)> = mstmt
+        .query_map([input.id], |r| Ok((r.get(0)?, r.get(1)?)))?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(mstmt);
+    for (meal_id, deadline) in affected {
+        let started_at = deadline - input.max_duration;
+        conn.execute(
+            "UPDATE meals SET started_at = ?1 WHERE id = ?2",
+            params![started_at, meal_id],
+        )?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_food(id: i64, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute("DELETE FROM foods WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn list_steps_for_food(food_id: i64, db: State<'_, Db>) -> AppResult<Vec<FoodStep>> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(
+        "SELECT id, food_id, name, description, duration, min_duration, max_duration, offset_time
+         FROM food_steps WHERE food_id = ?1 ORDER BY offset_time, id",
+    )?;
+    let rows = stmt.query_map([food_id], row_to_step)?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+#[tauri::command]
+pub fn create_step(input: CreateStepInput, db: State<'_, Db>) -> AppResult<FoodStep> {
+    let conn = db.0.lock().unwrap();
+    conn.execute(
+        "INSERT INTO food_steps (food_id, name, description, duration, min_duration, max_duration, offset_time)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+        params![input.food_id, input.name, input.description, input.duration, input.min_duration, input.max_duration, input.offset_time],
+    )?;
+    let id = conn.last_insert_rowid();
+    Ok(FoodStep {
+        id,
+        food_id: input.food_id,
+        name: input.name,
+        description: input.description,
+        duration: input.duration,
+        min_duration: input.min_duration,
+        max_duration: input.max_duration,
+        offset_time: input.offset_time,
+    })
+}
+
+#[tauri::command]
+pub fn update_step(input: UpdateStepInput, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute(
+        "UPDATE food_steps SET name = ?1, description = ?2, duration = ?3, min_duration = ?4, max_duration = ?5, offset_time = ?6 WHERE id = ?7",
+        params![input.name, input.description, input.duration, input.min_duration, input.max_duration, input.offset_time, input.id],
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_step(id: i64, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute("DELETE FROM food_steps WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+===== commands/import.rs =====
+use crate::db::Db;
+use crate::models::*;
+use rusqlite::{params, Connection};
+use std::collections::HashMap;
+use tauri::State;
+
+pub fn run_import(conn: &Connection, payload: &ImportPayload) -> AppResult<ImportResult> {
+    let mut result = ImportResult {
+        plans_created: 0,
+        plans_skipped: 0,
+        foods_created: 0,
+        foods_skipped: 0,
+        meals_created: 0,
+        meals_skipped: 0,
+        errors: Vec::new(),
+    };
+
+    let mut plan_ids: HashMap<String, i64> = HashMap::new();
+    for plan in &payload.plans {
+        let existing: Option<i64> = conn
+            .query_row("SELECT id FROM plans WHERE slug = ?1", [&plan.slug], |r| r.get(0))
+            .ok();
+        if let Some(id) = existing {
+            plan_ids.insert(plan.slug.clone(), id);
+            result.plans_skipped += 1;
+            continue;
+        }
+        if plan.is_active {
+            conn.execute("UPDATE plans SET is_active = 0", [])?;
+        }
+        conn.execute(
+            "INSERT INTO plans (name, description, slug, is_active, start_weekday) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![plan.name, plan.description, plan.slug, if plan.is_active { 1 } else { 0 }, plan.start_weekday],
+        )?;
+        let id = conn.last_insert_rowid();
+        plan_ids.insert(plan.slug.clone(), id);
+        result.plans_created += 1;
+    }
+
+    let mut food_ids: HashMap<String, i64> = HashMap::new();
+    for food in &payload.foods {
+        let existing: Option<i64> = conn
+            .query_row("SELECT id FROM foods WHERE slug = ?1", [&food.slug], |r| r.get(0))
+            .ok();
+        if let Some(id) = existing {
+            food_ids.insert(food.slug.clone(), id);
+            result.foods_skipped += 1;
+            continue;
+        }
+        conn.execute(
+            "INSERT INTO foods (name, slug, description, min_duration, max_duration) VALUES (?1, ?2, ?3, ?4, ?5)",
+            params![food.name, food.slug, food.description, food.min_duration, food.max_duration],
+        )?;
+        let id = conn.last_insert_rowid();
+        food_ids.insert(food.slug.clone(), id);
+        result.foods_created += 1;
+        for step in &food.steps {
+            conn.execute(
+                "INSERT INTO food_steps (food_id, name, description, duration, min_duration, max_duration, offset_time) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![id, step.name, step.description, step.duration, step.min_duration, step.max_duration, step.offset_time],
+            )?;
+        }
+    }
+
+    for meal in &payload.meals {
+        let Some(&plan_id) = plan_ids.get(&meal.plan_slug) else {
+            result.errors.push(format!("Meal '{}' references unknown plan '{}'", meal.name, meal.plan_slug));
+            result.meals_skipped += 1;
+            continue;
+        };
+        let Some(&food_id) = food_ids.get(&meal.food_slug) else {
+            result.errors.push(format!("Meal '{}' references unknown food '{}'", meal.name, meal.food_slug));
+            result.meals_skipped += 1;
+            continue;
+        };
+        if !["breakfast", "lunch", "dinner", "snack"].contains(&meal.meal_type.as_str()) {
+            result.errors.push(format!("Meal '{}' has invalid type '{}'", meal.name, meal.meal_type));
+            result.meals_skipped += 1;
+            continue;
+        }
+        if !(0..=6).contains(&meal.weekday) {
+            result.errors.push(format!("Meal '{}' has invalid weekday {}", meal.name, meal.weekday));
+            result.meals_skipped += 1;
+            continue;
+        }
+
+        // Skip exact duplicates by (plan, weekday, name)
+        let dup: Option<i64> = conn
+            .query_row(
+                "SELECT m.id FROM plan_meals pm JOIN meals m ON m.id = pm.meal_id
+                 WHERE pm.plan_id = ?1 AND pm.weekday = ?2 AND m.name = ?3",
+                params![plan_id, meal.weekday, meal.name],
+                |r| r.get(0),
+            )
+            .ok();
+        if dup.is_some() {
+            result.errors.push(format!(
+                "Meal '{}' skipped: already exists on {} of plan '{}'",
+                meal.name, meal.weekday, meal.plan_slug
+            ));
+            result.meals_skipped += 1;
+            continue;
+        }
+
+        let max_dur: i64 = conn.query_row(
+            "SELECT COALESCE(max_duration, 0) FROM foods WHERE id = ?1",
+            [food_id],
+            |r| r.get(0),
+        )?;
+        let started_at = meal.deadline_at - max_dur;
+
+        conn.execute(
+            "INSERT INTO meals (name, description, type, deadline_at, started_at, food_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+            params![meal.name, meal.description, meal.meal_type, meal.deadline_at, started_at, food_id],
+        )?;
+        let meal_id = conn.last_insert_rowid();
+        conn.execute(
+            "INSERT INTO plan_meals (plan_id, meal_id, weekday) VALUES (?1, ?2, ?3)",
+            params![plan_id, meal_id, meal.weekday],
+        )?;
+        result.meals_created += 1;
+    }
+
+    Ok(result)
+}
+
+#[tauri::command]
+pub fn import_data(payload: ImportPayload, db: State<'_, Db>) -> AppResult<ImportResult> {
+    let mut conn = db.0.lock().unwrap();
+    let tx = conn.transaction()?;
+    let result = run_import(&tx, &payload)?;
+    tx.commit()?;
+    Ok(result)
+}
+
+===== commands/meals.rs =====
+use crate::db::Db;
+use crate::models::*;
+use rusqlite::params;
+use tauri::State;
+
+fn row_to_meal(row: &rusqlite::Row<'_>) -> rusqlite::Result<Meal> {
+    Ok(Meal {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        description: row.get(2)?,
+        meal_type: row.get(3)?,
+        deadline_at: row.get(4)?,
+        started_at: row.get(5)?,
+        food_id: row.get(6)?,
+    })
+}
+
+fn row_to_food(row: &rusqlite::Row<'_>) -> rusqlite::Result<Food> {
+    Ok(Food {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        slug: row.get(2)?,
+        description: row.get(3)?,
+        min_duration: row.get(4)?,
+        max_duration: row.get(5)?,
+    })
+}
+
+fn fetch_food(conn: &rusqlite::Connection, id: i64) -> rusqlite::Result<Food> {
+    conn.query_row(
+        "SELECT id, name, slug, description, min_duration, max_duration FROM foods WHERE id = ?1",
+        [id],
+        row_to_food,
+    )
+}
+
+fn fetch_food_steps(conn: &rusqlite::Connection, food_id: i64) -> rusqlite::Result<Vec<FoodStep>> {
+    let mut stmt = conn.prepare(
+        "SELECT id, food_id, name, description, duration, min_duration, max_duration, offset_time
+         FROM food_steps WHERE food_id = ?1 ORDER BY offset_time, id",
+    )?;
+    let rows = stmt.query_map([food_id], |r| {
+        Ok(FoodStep {
+            id: r.get(0)?,
+            food_id: r.get(1)?,
+            name: r.get(2)?,
+            description: r.get(3)?,
+            duration: r.get(4)?,
+            min_duration: r.get(5)?,
+            max_duration: r.get(6)?,
+            offset_time: r.get(7)?,
+        })
+    })?;
+    rows.collect()
+}
+
+fn build_details(
+    conn: &rusqlite::Connection,
+    meal: Meal,
+) -> AppResult<MealPlanDetails> {
+    let food = fetch_food(conn, meal.food_id)?;
+    let cook_start_at = meal.deadline_at - food.max_duration;
+    let cook_end_at = meal.deadline_at;
+    let steps = fetch_food_steps(conn, food.id)?
+        .into_iter()
+        .map(|s| {
+            let start_at = cook_start_at + s.offset_time;
+            MealPlanStep {
+                id: s.id,
+                name: s.name,
+                description: s.description,
+                start_at,
+                end_at: start_at + s.duration,
+                duration: s.duration,
+                offset_time: s.offset_time,
+            }
+        })
+        .collect();
+    Ok(MealPlanDetails {
+        meal,
+        food,
+        cook_start_at,
+        cook_end_at,
+        steps,
+    })
+}
+
+#[tauri::command]
+pub fn list_meals_for_plan(plan_id: i64, db: State<'_, Db>) -> AppResult<Vec<MealWithPlanAlias>> {
+    // kept for backwards compatibility; wraps week details
+    let details = get_plan_week_details(plan_id, db)?;
+    Ok(details
+        .into_iter()
+        .map(|d| MealWithPlanAlias {
+            plan_meal_id: d.plan_meal_id,
+            weekday: d.weekday,
+            meal: d.details.meal,
+        })
+        .collect())
+}
+
+// Minimal shape to keep the old command working if anything still uses it.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MealWithPlanAlias {
+    pub plan_meal_id: i64,
+    pub weekday: i64,
+    pub meal: Meal,
+}
+
+#[tauri::command]
+pub fn get_plan_week_details(
+    plan_id: i64,
+    db: State<'_, Db>,
+) -> AppResult<Vec<PlanMealDetail>> {
+    let conn = db.0.lock().unwrap();
+
+    let mut stmt = conn.prepare(
+        "SELECT pm.id, pm.weekday, m.id, m.name, m.description, m.type, m.deadline_at, m.started_at, m.food_id
+         FROM plan_meals pm JOIN meals m ON m.id = pm.meal_id
+         WHERE pm.plan_id = ?1 AND m.food_id IS NOT NULL
+         ORDER BY pm.weekday, m.deadline_at, m.id",
+    )?;
+    let rows: Vec<(i64, i64, Meal)> = stmt
+        .query_map([plan_id], |row| {
+            Ok((
+                row.get::<_, i64>(0)?,
+                row.get::<_, i64>(1)?,
+                Meal {
+                    id: row.get(2)?,
+                    name: row.get(3)?,
+                    description: row.get(4)?,
+                    meal_type: row.get(5)?,
+                    deadline_at: row.get(6)?,
+                    started_at: row.get(7)?,
+                    food_id: row.get(8)?,
+                },
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+    drop(stmt);
+
+    let mut out = Vec::new();
+    for (plan_meal_id, weekday, meal) in rows {
+        let details = build_details(&conn, meal)?;
+        out.push(PlanMealDetail {
+            plan_meal_id,
+            weekday,
+            details,
+        });
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+pub fn get_meal(meal_id: i64, db: State<'_, Db>) -> AppResult<Meal> {
+    let conn = db.0.lock().unwrap();
+    conn.query_row(
+        "SELECT id, name, description, type, deadline_at, started_at, food_id FROM meals WHERE id = ?1",
+        [meal_id],
+        row_to_meal,
+    )
+    .map_err(Into::into)
+}
+
+#[tauri::command]
+pub fn get_meal_plan_details(meal_id: i64, db: State<'_, Db>) -> AppResult<MealPlanDetails> {
+    let conn = db.0.lock().unwrap();
+    let meal = conn.query_row(
+        "SELECT id, name, description, type, deadline_at, started_at, food_id FROM meals WHERE id = ?1",
+        [meal_id],
+        row_to_meal,
+    )?;
+    build_details(&conn, meal)
+}
+
+fn compute_started_at(conn: &rusqlite::Connection, food_id: i64, deadline: i64) -> rusqlite::Result<i64> {
+    let max_dur: i64 = conn.query_row(
+        "SELECT COALESCE(max_duration, 0) FROM foods WHERE id = ?1",
+        [food_id],
+        |r| r.get(0),
+    )?;
+    Ok(deadline - max_dur)
+}
+
+#[tauri::command]
+pub fn create_meal(input: CreateMealInput, db: State<'_, Db>) -> AppResult<Meal> {
+    let mut conn = db.0.lock().unwrap();
+    let tx = conn.transaction()?;
+
+    let started = compute_started_at(&tx, input.food_id, input.deadline_at)?;
+    tx.execute(
+        "INSERT INTO meals (name, description, type, deadline_at, started_at, food_id) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+        params![input.name, input.description, input.meal_type, input.deadline_at, started, input.food_id],
+    )?;
+    let meal_id = tx.last_insert_rowid();
+    tx.execute(
+        "INSERT INTO plan_meals (plan_id, meal_id, weekday) VALUES (?1, ?2, ?3)",
+        params![input.plan_id, meal_id, input.weekday],
+    )?;
+    tx.commit()?;
+
+    Ok(Meal {
+        id: meal_id,
+        name: input.name,
+        description: input.description,
+        meal_type: input.meal_type,
+        deadline_at: input.deadline_at,
+        started_at: Some(started),
+        food_id: input.food_id,
+    })
+}
+
+#[tauri::command]
+pub fn update_meal(input: UpdateMealInput, db: State<'_, Db>) -> AppResult<Meal> {
+    let mut conn = db.0.lock().unwrap();
+    let tx = conn.transaction()?;
+    let started = compute_started_at(&tx, input.food_id, input.deadline_at)?;
+    tx.execute(
+        "UPDATE meals SET name = ?1, description = ?2, type = ?3, deadline_at = ?4, started_at = ?5, food_id = ?6 WHERE id = ?7",
+        params![input.name, input.description, input.meal_type, input.deadline_at, started, input.food_id, input.meal_id],
+    )?;
+    tx.commit()?;
+    Ok(Meal {
+        id: input.meal_id,
+        name: input.name,
+        description: input.description,
+        meal_type: input.meal_type,
+        deadline_at: input.deadline_at,
+        started_at: Some(started),
+        food_id: input.food_id,
+    })
+}
+
+#[tauri::command]
+pub fn delete_meal(meal_id: i64, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute("DELETE FROM meals WHERE id = ?1", [meal_id])?;
+    Ok(())
+}
+
+===== commands/mod.rs =====
+pub mod plans;
+pub mod meals;
+pub mod foods;
+pub mod schedule;
+pub mod import;
+
+===== commands/plans.rs =====
+use crate::db::Db;
+use crate::models::*;
+use tauri::State;
+
+fn row_to_plan(row: &rusqlite::Row<'_>) -> rusqlite::Result<Plan> {
+    Ok(Plan {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        description: row.get(2)?,
+        slug: row.get(3)?,
+        is_active: row.get::<_, i64>(4)? != 0,
+        start_weekday: row.get(5)?,
+    })
+}
+
+#[tauri::command]
+pub fn list_plans(db: State<'_, Db>) -> AppResult<Vec<Plan>> {
+    let conn = db.0.lock().unwrap();
+    let mut stmt = conn.prepare(
+        "SELECT id, name, description, slug, is_active, start_weekday FROM plans ORDER BY id DESC",
+    )?;
+    let rows = stmt.query_map([], row_to_plan)?;
+    Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+}
+
+#[tauri::command]
+pub fn create_plan(input: CreatePlanInput, db: State<'_, Db>) -> AppResult<Plan> {
+    let conn = db.0.lock().unwrap();
+    conn.execute(
+        "INSERT INTO plans (name, description, slug, is_active, start_weekday) VALUES (?1, ?2, ?3, 0, ?4)",
+        rusqlite::params![input.name, input.description, input.slug, input.start_weekday],
+    )?;
+    let id = conn.last_insert_rowid();
+    Ok(Plan {
+        id,
+        name: input.name,
+        description: input.description,
+        slug: input.slug,
+        is_active: false,
+        start_weekday: input.start_weekday,
+    })
+}
+
+#[tauri::command]
+pub fn update_plan(input: UpdatePlanInput, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute(
+        "UPDATE plans SET name = ?1, description = ?2, slug = ?3, start_weekday = ?4 WHERE id = ?5",
+        rusqlite::params![input.name, input.description, input.slug, input.start_weekday, input.id],
+    )?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn delete_plan(id: i64, db: State<'_, Db>) -> AppResult<()> {
+    let conn = db.0.lock().unwrap();
+    conn.execute("DELETE FROM plans WHERE id = ?1", [id])?;
+    Ok(())
+}
+
+#[tauri::command]
+pub fn set_active_plan(id: i64, db: State<'_, Db>) -> AppResult<()> {
+    let mut conn = db.0.lock().unwrap();
+    let tx = conn.transaction()?;
+    tx.execute("UPDATE plans SET is_active = 0", [])?;
+    tx.execute("UPDATE plans SET is_active = 1 WHERE id = ?1", [id])?;
+    tx.commit()?;
+    Ok(())
+}
+
+===== commands/schedule.rs =====
+use crate::db::Db;
+use crate::models::*;
+use tauri::State;
+
+#[tauri::command]
+pub fn compute_meal_schedule(meal_id: i64, db: State<'_, Db>) -> AppResult<Vec<ScheduledStep>> {
+    let conn = db.0.lock().unwrap();
+
+    let (deadline, food_id): (i64, i64) = conn.query_row(
+        "SELECT deadline_at, food_id FROM meals WHERE id = ?1",
+        [meal_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+
+    let (food_name, max_dur): (String, i64) = conn.query_row(
+        "SELECT name, max_duration FROM foods WHERE id = ?1",
+        [food_id],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
+    let food_start = deadline - max_dur;
+
+    let mut stmt = conn.prepare(
+        "SELECT name, description, duration, offset_time FROM food_steps WHERE food_id = ?1 ORDER BY offset_time",
+    )?;
+    let rows = stmt
+        .query_map([food_id], |r| {
+            Ok((
+                r.get::<_, String>(0)?,
+                r.get::<_, Option<String>>(1)?,
+                r.get::<_, i64>(2)?,
+                r.get::<_, i64>(3)?,
+            ))
+        })?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
+
+    let mut out: Vec<ScheduledStep> = rows
+        .into_iter()
+        .map(|(name, desc, dur, offset)| ScheduledStep {
+            food_name: food_name.clone(),
+            step_name: name,
+            step_description: desc,
+            notify_at_minutes: food_start + offset,
+            duration: dur,
+        })
+        .collect();
+    out.sort_by_key(|s| s.notify_at_minutes);
+    Ok(out)
+}
+
+===== db.rs =====
+use crate::models::AppResult;
+use rusqlite::Connection;
+use std::path::Path;
+use std::sync::Mutex;
+
+pub struct Db(pub Mutex<Connection>);
+
+impl Db {
+    pub fn open(path: &Path) -> AppResult<Self> {
+        if let Some(parent) = path.parent() {
+            std::fs::create_dir_all(parent).ok();
+        }
+        let conn = Connection::open(path)?;
+        conn.execute_batch("PRAGMA foreign_keys = ON;")?;
+        conn.execute_batch(MIGRATIONS)?;
+
+        // v1 patch: add start_weekday (idempotent)
+        let _ = conn.execute(
+            "ALTER TABLE plans ADD COLUMN start_weekday INTEGER NOT NULL DEFAULT 0",
+            [],
+        );
+
+        // v2 patch: meals.food_id column + plan_meals without UNIQUE(plan_id, weekday)
+        let version: i64 = conn
+            .query_row(
+                "SELECT COALESCE((SELECT CAST(value AS INTEGER) FROM _meta WHERE key='schema_version'), 1)",
+                [],
+                |r| r.get(0),
+            )
+            .unwrap_or(1);
+
+        if version < 2 {
+            // add food_id to meals (silent no-op if present)
+            let _ = conn.execute("ALTER TABLE meals ADD COLUMN food_id INTEGER", []);
+            // backfill from meal_foods (first food per meal)
+            let _ = conn.execute(
+                "UPDATE meals SET food_id = (SELECT food_id FROM meal_foods WHERE meal_id = meals.id LIMIT 1) WHERE food_id IS NULL",
+                [],
+            );
+
+            // rebuild plan_meals without the UNIQUE(plan_id, weekday) constraint
+            let needs_rebuild: bool = conn
+                .query_row(
+                    "SELECT COALESCE(sql LIKE '%UNIQUE(plan_id, weekday)%', 0) FROM sqlite_master WHERE type='table' AND name='plan_meals'",
+                    [],
+                    |r| r.get::<_, i64>(0),
+                )
+                .map(|v| v != 0)
+                .unwrap_or(false);
+
+            if needs_rebuild {
+                conn.execute_batch(
+                    r#"
+                    CREATE TABLE IF NOT EXISTS plan_meals_v2 (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        plan_id INTEGER NOT NULL,
+                        meal_id INTEGER NOT NULL,
+                        weekday INTEGER NOT NULL CHECK(weekday BETWEEN 0 AND 6),
+                        FOREIGN KEY(plan_id) REFERENCES plans(id) ON DELETE CASCADE,
+                        FOREIGN KEY(meal_id) REFERENCES meals(id) ON DELETE CASCADE
+                    );
+                    INSERT INTO plan_meals_v2 (id, plan_id, meal_id, weekday)
+                        SELECT id, plan_id, meal_id, weekday FROM plan_meals;
+                    DROP TABLE plan_meals;
+                    ALTER TABLE plan_meals_v2 RENAME TO plan_meals;
+                    "#,
+                )?;
+            }
+
+            conn.execute(
+                "INSERT OR REPLACE INTO _meta (key, value) VALUES ('schema_version', '2')",
+                [],
+            )?;
+        }
+
+        Ok(Db(Mutex::new(conn)))
+    }
+}
+
+const MIGRATIONS: &str = r#"
+CREATE TABLE IF NOT EXISTS _meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS plans (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  slug TEXT NOT NULL UNIQUE,
+  is_active INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS foods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  slug TEXT NOT NULL UNIQUE,
+  description TEXT,
+  min_duration INTEGER NOT NULL DEFAULT 0,
+  max_duration INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS food_steps (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  food_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  description TEXT,
+  duration INTEGER NOT NULL DEFAULT 0,
+  min_duration INTEGER NOT NULL DEFAULT 0,
+  max_duration INTEGER NOT NULL DEFAULT 0,
+  offset_time INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY(food_id) REFERENCES foods(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  description TEXT,
+  type TEXT NOT NULL DEFAULT 'breakfast',
+  deadline_at INTEGER NOT NULL DEFAULT 0,
+  started_at INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS plan_meals (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  plan_id INTEGER NOT NULL,
+  meal_id INTEGER NOT NULL,
+  weekday INTEGER NOT NULL CHECK(weekday BETWEEN 0 AND 6),
+  FOREIGN KEY(plan_id) REFERENCES plans(id) ON DELETE CASCADE,
+  FOREIGN KEY(meal_id) REFERENCES meals(id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS meal_foods (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  meal_id INTEGER NOT NULL,
+  food_id INTEGER NOT NULL,
+  FOREIGN KEY(meal_id) REFERENCES meals(id) ON DELETE CASCADE,
+  FOREIGN KEY(food_id) REFERENCES foods(id) ON DELETE CASCADE,
+  UNIQUE(meal_id, food_id)
+);
+"#;
+
+===== lib.rs =====
+mod commands;
+mod db;
+mod models;
+mod scheduler;
+mod seed;
+
+use db::Db;
+use tauri::Manager;
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_safe_area_insets_css::init())
+        .plugin(tauri_plugin_alarm::init())
+        .plugin(tauri_plugin_alarm_scheduler::init())
+        .setup(|app| {
+            let app_data_dir = app
+                .path()
+                .app_data_dir()
+                .map_err(|e| format!("app data dir: {e}"))?;
+            let db_path = app_data_dir.join("cookplans.db");
+            let db = Db::open(&db_path).map_err(|e| format!("db: {e}"))?;
+
+            {
+                let conn = db.0.lock().unwrap();
+                seed::seed_if_needed(&conn).map_err(|e| format!("seed: {e}"))?;
+            }
+
+            app.manage(db);
+
+            let handle = app.handle().clone();
+            scheduler::start(handle);
+
+            Ok(())
+        })
+        .invoke_handler(tauri::generate_handler![
+            commands::plans::list_plans,
+            commands::plans::create_plan,
+            commands::plans::update_plan,
+            commands::plans::delete_plan,
+            commands::plans::set_active_plan,
+            commands::meals::list_meals_for_plan,
+            commands::meals::get_plan_week_details,
+            commands::meals::get_meal,
+            commands::meals::get_meal_plan_details,
+            commands::meals::create_meal,
+            commands::meals::update_meal,
+            commands::meals::delete_meal,
+            commands::foods::list_foods,
+            commands::foods::get_food,
+            commands::foods::create_food,
+            commands::foods::update_food,
+            commands::foods::delete_food,
+            commands::foods::list_steps_for_food,
+            commands::foods::create_step,
+            commands::foods::update_step,
+            commands::foods::delete_step,
+            commands::schedule::compute_meal_schedule,
+            commands::import::import_data,
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}
+
+===== main.rs =====
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+fn main() {
+    cookplans_lib::run()
+}
+
+===== models.rs =====
+use serde::{Deserialize, Serialize};
+use std::fmt;
+
+#[derive(Debug)]
+pub struct AppError(pub String);
+
+impl fmt::Display for AppError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0)
+    }
+}
+
+impl std::error::Error for AppError {}
+
+impl serde::Serialize for AppError {
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&self.0)
+    }
+}
+
+impl From<rusqlite::Error> for AppError {
+    fn from(e: rusqlite::Error) -> Self {
+        AppError(format!("db: {e}"))
+    }
+}
+
+pub type AppResult<T> = Result<T, AppError>;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Plan {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub slug: String,
+    pub is_active: bool,
+    pub start_weekday: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Meal {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub meal_type: String,
+    pub deadline_at: i64,
+    pub started_at: Option<i64>,
+    pub food_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct Food {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    pub description: Option<String>,
+    pub min_duration: i64,
+    pub max_duration: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct FoodStep {
+    pub id: i64,
+    pub food_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub duration: i64,
+    pub min_duration: i64,
+    pub max_duration: i64,
+    pub offset_time: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ScheduledStep {
+    pub food_name: String,
+    pub step_name: String,
+    pub step_description: Option<String>,
+    pub notify_at_minutes: i64,
+    pub duration: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MealPlanStep {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub start_at: i64,
+    pub end_at: i64,
+    pub duration: i64,
+    pub offset_time: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MealPlanDetails {
+    pub meal: Meal,
+    pub food: Food,
+    pub cook_start_at: i64,
+    pub cook_end_at: i64,
+    pub steps: Vec<MealPlanStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlanMealDetail {
+    pub plan_meal_id: i64,
+    pub weekday: i64,
+    pub details: MealPlanDetails,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreatePlanInput {
+    pub name: String,
+    pub description: Option<String>,
+    pub slug: String,
+    pub start_weekday: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdatePlanInput {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub slug: String,
+    pub start_weekday: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateMealInput {
+    pub plan_id: i64,
+    pub weekday: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub meal_type: String,
+    pub deadline_at: i64,
+    pub food_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateMealInput {
+    pub meal_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub meal_type: String,
+    pub deadline_at: i64,
+    pub food_id: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateFoodInput {
+    pub name: String,
+    pub slug: String,
+    pub description: Option<String>,
+    pub min_duration: i64,
+    pub max_duration: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateFoodInput {
+    pub id: i64,
+    pub name: String,
+    pub slug: String,
+    pub description: Option<String>,
+    pub min_duration: i64,
+    pub max_duration: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct CreateStepInput {
+    pub food_id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub duration: i64,
+    pub min_duration: i64,
+    pub max_duration: i64,
+    pub offset_time: i64,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct UpdateStepInput {
+    pub id: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub duration: i64,
+    pub min_duration: i64,
+    pub max_duration: i64,
+    pub offset_time: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportStep {
+    pub name: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub duration: i64,
+    #[serde(default)]
+    pub min_duration: i64,
+    #[serde(default)]
+    pub max_duration: i64,
+    #[serde(default)]
+    pub offset_time: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportFood {
+    pub name: String,
+    pub slug: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub min_duration: i64,
+    #[serde(default)]
+    pub max_duration: i64,
+    #[serde(default)]
+    pub steps: Vec<ImportStep>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPlan {
+    pub name: String,
+    pub slug: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub is_active: bool,
+    #[serde(default)]
+    pub start_weekday: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportMeal {
+    pub plan_slug: String,
+    pub weekday: i64,
+    pub name: String,
+    pub description: Option<String>,
+    pub meal_type: String,
+    pub deadline_at: i64,
+    pub food_slug: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportPayload {
+    #[serde(default)]
+    pub plans: Vec<ImportPlan>,
+    #[serde(default)]
+    pub foods: Vec<ImportFood>,
+    #[serde(default)]
+    pub meals: Vec<ImportMeal>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportResult {
+    pub plans_created: i64,
+    pub plans_skipped: i64,
+    pub foods_created: i64,
+    pub foods_skipped: i64,
+    pub meals_created: i64,
+    pub meals_skipped: i64,
+    pub errors: Vec<String>,
+}
+
+===== scheduler.rs =====
+use crate::db::Db;
+use chrono::{Datelike, Local, Timelike};
+use rusqlite::params;
+use std::collections::HashSet;
+use std::sync::Mutex;
+use std::time::Duration;
+use tauri::{AppHandle, Manager};
+use tauri_plugin_notification::NotificationExt;
+
+pub fn start(app: AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        let fired: Mutex<HashSet<String>> = Mutex::new(HashSet::new());
+        let mut last_day: u32 = Local::now().ordinal();
+
+        loop {
+            tokio::time::sleep(Duration::from_secs(30)).await;
+            let now = Local::now();
+            if now.ordinal() != last_day {
+                fired.lock().unwrap().clear();
+                last_day = now.ordinal();
+            }
+            if let Err(e) = tick(&app, &fired, &now) {
+                eprintln!("[scheduler] {e}");
+            }
+        }
+    });
+}
+
+fn tick(
+    app: &AppHandle,
+    fired: &Mutex<HashSet<String>>,
+    now: &chrono::DateTime<Local>,
+) -> Result<(), String> {
+    let db = app.state::<Db>();
+    let conn = db.0.lock().map_err(|e| e.to_string())?;
+    let now_min: i64 = (now.hour() as i64) * 60 + (now.minute() as i64);
+    let weekday: i64 = now.weekday().num_days_from_sunday() as i64;
+    let day_key = now.ordinal();
+
+    let active_plan_id: Option<i64> = conn
+        .query_row("SELECT id FROM plans WHERE is_active = 1 LIMIT 1", [], |r| r.get(0))
+        .ok();
+
+    let Some(plan_id) = active_plan_id else {
+        return Ok(());
+    };
+
+    let mut stmt = conn
+        .prepare(
+            "SELECT m.id, m.name, m.deadline_at, m.food_id FROM meals m
+             JOIN plan_meals pm ON pm.meal_id = m.id
+             WHERE pm.plan_id = ?1 AND pm.weekday = ?2 AND m.food_id IS NOT NULL",
+        )
+        .map_err(|e| e.to_string())?;
+
+    let meals: Vec<(i64, String, i64, i64)> = stmt
+        .query_map(params![plan_id, weekday], |r| {
+            Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<rusqlite::Result<Vec<_>>>()
+        .map_err(|e| e.to_string())?;
+    drop(stmt);
+
+    for (meal_id, meal_name, deadline, food_id) in meals {
+        let food: Option<(String, i64)> = conn
+            .query_row(
+                "SELECT name, max_duration FROM foods WHERE id = ?1",
+                [food_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .ok();
+        let Some((food_name, food_max)) = food else {
+            continue;
+        };
+        let food_start = deadline - food_max;
+
+        let mut sstmt = conn
+            .prepare(
+                "SELECT id, name, description, offset_time FROM food_steps WHERE food_id = ?1 ORDER BY offset_time",
+            )
+            .map_err(|e| e.to_string())?;
+        let steps: Vec<(i64, String, Option<String>, i64)> = sstmt
+            .query_map([food_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))
+            .map_err(|e| e.to_string())?
+            .collect::<rusqlite::Result<Vec<_>>>()
+            .map_err(|e| e.to_string())?;
+        drop(sstmt);
+
+        for (step_id, step_name, step_desc, offset) in steps {
+            let notify_at = food_start + offset;
+            if notify_at > now_min - 1 && notify_at <= now_min {
+                let key = format!("{}-{}-{}-{}", day_key, meal_id, food_id, step_id);
+                let mut set = fired.lock().map_err(|e| e.to_string())?;
+                if set.insert(key) {
+                    let title = format!("{} — {} · {}", meal_name, food_name, step_name);
+                    let body = step_desc.unwrap_or_else(|| format!("Step for {}", food_name));
+                    let _ = app
+                        .notification()
+                        .builder()
+                        .title(&title)
+                        .body(&body)
+                        .show();
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+===== seed.rs =====
+use crate::commands::import::run_import;
+use crate::models::{AppError, AppResult, ImportPayload};
+use rusqlite::Connection;
+
+pub fn seed_if_needed(conn: &Connection) -> AppResult<()> {
+    let done: Option<String> = conn
+        .query_row(
+            "SELECT value FROM _meta WHERE key = 'seed_v2'",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+    if done.is_some() {
+        return Ok(());
+    }
+
+    // If the Iranian plan already exists (fresh or user imported), skip.
+    let exists: Option<i64> = conn
+        .query_row(
+            "SELECT id FROM plans WHERE slug = 'irani-week'",
+            [],
+            |r| r.get(0),
+        )
+        .ok();
+
+    if exists.is_none() {
+        let payload: ImportPayload = serde_json::from_str(include_str!("../seed.json"))
+            .map_err(|e| AppError(format!("seed parse: {e}")))?;
+        let _ = run_import(conn, &payload)?;
+    }
+
+    conn.execute(
+        "INSERT OR REPLACE INTO _meta (key, value) VALUES ('seed_v2', 'done')",
+        [],
+    )?;
+    Ok(())
+}
+
+### SUMMARY ###
+Files included: 12
+Files skipped : 0

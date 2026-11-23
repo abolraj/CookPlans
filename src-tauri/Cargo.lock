@@ -561,6 +561,7 @@ dependencies = [
  "tauri",
  "tauri-build",
  "tauri-plugin-alarm",
+ "tauri-plugin-alarm-scheduler",
  "tauri-plugin-notification",
  "tauri-plugin-safe-area-insets-css",
  "tokio",
@@ -3797,6 +3798,16 @@ dependencies = [
 
 [[package]]
 name = "tauri-plugin-alarm"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "tauri",
+ "tauri-plugin",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "tauri-plugin-alarm-scheduler"
 version = "0.1.0"
 dependencies = [
  "serde",

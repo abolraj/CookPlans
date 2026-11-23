@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-check-android-permissions"
+description = "Enables the check_android_permissions command without any pre-configured scope."
+commands.allow = ["check_android_permissions"]
+
+[[permission]]
+identifier = "deny-check-android-permissions"
+description = "Denies the check_android_permissions command without any pre-configured scope."
+commands.deny = ["check_android_permissions"]

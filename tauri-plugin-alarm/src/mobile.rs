@@ -1,34 +1,54 @@
-use serde::de::DeserializeOwned;
+use serde::Serialize;
 use tauri::{
-  plugin::{PluginApi, PluginHandle},
-  AppHandle, Runtime,
+    plugin::{PluginApi, PluginHandle},
+    AppHandle, Runtime,
 };
 
-use crate::models::*;
+use crate::error::{Error, Result};
+use crate::models::{AlarmArgs, RingingStatus};
 
-#[cfg(target_os = "ios")]
-tauri::ios_plugin_binding!(init_plugin_alarm);
+#[derive(Serialize)]
+struct EmptyArgs {}
 
-// initializes the Kotlin or Swift plugin classes
-pub fn init<R: Runtime, C: DeserializeOwned>(
-  _app: &AppHandle<R>,
-  api: PluginApi<R, C>,
-) -> crate::Result<Alarm<R>> {
-  #[cfg(target_os = "android")]
-  let handle = api.register_android_plugin("com.plugin.alarm", "ExamplePlugin")?;
-  #[cfg(target_os = "ios")]
-  let handle = api.register_ios_plugin(init_plugin_alarm)?;
-  Ok(Alarm(handle))
+pub struct Alarm<R: Runtime> {
+    handle: PluginHandle<R>,
 }
 
-/// Access to the alarm APIs.
-pub struct Alarm<R: Runtime>(PluginHandle<R>);
-
 impl<R: Runtime> Alarm<R> {
-  pub fn ping(&self, payload: PingRequest) -> crate::Result<PingResponse> {
-    self
-      .0
-      .run_mobile_plugin("ping", payload)
-      .map_err(Into::into)
-  }
+    pub fn new(_app: &AppHandle<R>, api: PluginApi<R, ()>) -> Result<Self> {
+        let handle = api
+            .register_android_plugin("com.cookplans.alarm", "AlarmPlugin")
+            .map_err(|e| Error::Invoke(format!("{e:?}")))?;
+        Ok(Self { handle })
+    }
+
+    pub fn ring(&self, args: AlarmArgs) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("ring", args)
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn dismiss(&self) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("dismiss", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn is_alarm_ringing(&self) -> Result<RingingStatus> {
+        self.handle
+            .run_mobile_plugin::<RingingStatus>("isAlarmRinging", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn open_exact_alarm_settings(&self) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("openExactAlarmSettings", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn open_full_screen_intent_settings(&self) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("openFullScreenIntentSettings", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
 }

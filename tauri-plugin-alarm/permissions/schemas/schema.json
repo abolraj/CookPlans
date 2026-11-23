@@ -295,6 +295,66 @@
       "type": "string",
       "oneOf": [
         {
+          "description": "Enables the check_android_permissions command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-check-android-permissions",
+          "markdownDescription": "Enables the check_android_permissions command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the check_android_permissions command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-check-android-permissions",
+          "markdownDescription": "Denies the check_android_permissions command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the dismiss command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-dismiss",
+          "markdownDescription": "Enables the dismiss command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the dismiss command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-dismiss",
+          "markdownDescription": "Denies the dismiss command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the is_alarm_ringing command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-is-alarm-ringing",
+          "markdownDescription": "Enables the is_alarm_ringing command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the is_alarm_ringing command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-is-alarm-ringing",
+          "markdownDescription": "Denies the is_alarm_ringing command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_exact_alarm_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-exact-alarm-settings",
+          "markdownDescription": "Enables the open_exact_alarm_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_exact_alarm_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-exact-alarm-settings",
+          "markdownDescription": "Denies the open_exact_alarm_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_full_screen_intent_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-full-screen-intent-settings",
+          "markdownDescription": "Enables the open_full_screen_intent_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_full_screen_intent_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-full-screen-intent-settings",
+          "markdownDescription": "Denies the open_full_screen_intent_settings command without any pre-configured scope."
+        },
+        {
           "description": "Enables the ping command without any pre-configured scope.",
           "type": "string",
           "const": "allow-ping",
@@ -307,10 +367,34 @@
           "markdownDescription": "Denies the ping command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-ping`",
+          "description": "Enables the request_notification_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-request-notification-permission",
+          "markdownDescription": "Enables the request_notification_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the request_notification_permission command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-request-notification-permission",
+          "markdownDescription": "Denies the request_notification_permission command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the ring command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-ring",
+          "markdownDescription": "Enables the ring command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the ring command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-ring",
+          "markdownDescription": "Denies the ring command without any pre-configured scope."
+        },
+        {
+          "description": "Default permissions for the alarm plugin\n#### This default permission set includes:\n\n- `allow-ring`\n- `allow-dismiss`\n- `allow-is-alarm-ringing`\n- `allow-open-exact-alarm-settings`\n- `allow-open-full-screen-intent-settings`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the plugin\n#### This default permission set includes:\n\n- `allow-ping`"
+          "markdownDescription": "Default permissions for the alarm plugin\n#### This default permission set includes:\n\n- `allow-ring`\n- `allow-dismiss`\n- `allow-is-alarm-ringing`\n- `allow-open-exact-alarm-settings`\n- `allow-open-full-screen-intent-settings`"
         }
       ]
     }
