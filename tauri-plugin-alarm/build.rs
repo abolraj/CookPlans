@@ -4,6 +4,10 @@ const COMMANDS: &[&str] = &[
     "is_alarm_ringing",
     "open_exact_alarm_settings",
     "open_full_screen_intent_settings",
+    "get_oem_info",
+    "open_autostart_settings",
+    "open_xiaomi_battery_settings",
+    "open_xiaomi_permissions_editor",
 ];
 
 fn main() {

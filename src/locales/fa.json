@@ -12,7 +12,13 @@
     "fullScreenIntent": "صفحه کامل",
     "grant": "اجازه دادن",
     "granted": "فعال",
-    "openSettings": "تنظیمات"
+    "openSettings": "تنظیمات",
+    "xiaomiTitle": "تنظیمات اضافه شیائومی / MIUI",
+    "xiaomiNote": "شیائومی جلوی اجرای برنامه‌ها در پس‌زمینه را می‌گیرد. این موارد را فعال کنید وگرنه وقتی برنامه بسته است آلارم صدا نمی‌دهد.",
+    "autostart": "شروع خودکار (Autostart): اجازه برای CookPlans",
+    "batteryNoRestrictions": "ذخیره باتری: بدون محدودیت",
+    "lockScreenPopup": "نمایش در صفحه قفل + پنجره‌های پاپ‌آپ در پس‌زمینه",
+    "markDone": "فعال کردم"
   },
   "notificationContent": {
     "stepTitle": "{{stepName}}",

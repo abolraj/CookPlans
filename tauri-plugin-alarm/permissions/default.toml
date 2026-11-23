@@ -6,4 +6,8 @@ permissions = [
     "allow-is-alarm-ringing",
     "allow-open-exact-alarm-settings",
     "allow-open-full-screen-intent-settings",
+    "allow-get-oem-info",
+    "allow-open-autostart-settings",
+    "allow-open-xiaomi-battery-settings",
+    "allow-open-xiaomi-permissions-editor",
 ]

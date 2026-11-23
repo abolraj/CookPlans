@@ -1,11 +1,11 @@
 use serde::Serialize;
 use tauri::{
-    plugin::{PluginApi, PluginHandle},
     AppHandle, Runtime,
+    plugin::{PluginApi, PluginHandle},
 };
 
 use crate::error::{Error, Result};
-use crate::models::{AlarmArgs, RingingStatus};
+use crate::models::{AlarmArgs, OemInfo, RingingStatus};
 
 #[derive(Serialize)]
 struct EmptyArgs {}
@@ -49,6 +49,30 @@ impl<R: Runtime> Alarm<R> {
     pub fn open_full_screen_intent_settings(&self) -> Result<()> {
         self.handle
             .run_mobile_plugin::<()>("openFullScreenIntentSettings", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn get_oem_info(&self) -> Result<OemInfo> {
+        self.handle
+            .run_mobile_plugin::<OemInfo>("getOemInfo", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn open_autostart_settings(&self) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("openAutostartSettings", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn open_xiaomi_battery_settings(&self) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("openXiaomiBatterySettings", EmptyArgs {})
+            .map_err(|e| Error::Invoke(e.to_string()))
+    }
+
+    pub fn open_xiaomi_permissions_editor(&self) -> Result<()> {
+        self.handle
+            .run_mobile_plugin::<()>("openXiaomiPermissionsEditor", EmptyArgs {})
             .map_err(|e| Error::Invoke(e.to_string()))
     }
 }

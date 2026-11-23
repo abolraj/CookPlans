@@ -9,6 +9,10 @@ Default permissions for the alarm plugin
 - `allow-is-alarm-ringing`
 - `allow-open-exact-alarm-settings`
 - `allow-open-full-screen-intent-settings`
+- `allow-get-oem-info`
+- `allow-open-autostart-settings`
+- `allow-open-xiaomi-battery-settings`
+- `allow-open-xiaomi-permissions-editor`
 
 ## Permission Table
 
@@ -74,6 +78,32 @@ Denies the dismiss command without any pre-configured scope.
 <tr>
 <td>
 
+`alarm:allow-get-oem-info`
+
+</td>
+<td>
+
+Enables the get_oem_info command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:deny-get-oem-info`
+
+</td>
+<td>
+
+Denies the get_oem_info command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
 `alarm:allow-is-alarm-ringing`
 
 </td>
@@ -93,6 +123,32 @@ Enables the is_alarm_ringing command without any pre-configured scope.
 <td>
 
 Denies the is_alarm_ringing command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:allow-open-autostart-settings`
+
+</td>
+<td>
+
+Enables the open_autostart_settings command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:deny-open-autostart-settings`
+
+</td>
+<td>
+
+Denies the open_autostart_settings command without any pre-configured scope.
 
 </td>
 </tr>
@@ -145,6 +201,58 @@ Enables the open_full_screen_intent_settings command without any pre-configured 
 <td>
 
 Denies the open_full_screen_intent_settings command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:allow-open-xiaomi-battery-settings`
+
+</td>
+<td>
+
+Enables the open_xiaomi_battery_settings command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:deny-open-xiaomi-battery-settings`
+
+</td>
+<td>
+
+Denies the open_xiaomi_battery_settings command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:allow-open-xiaomi-permissions-editor`
+
+</td>
+<td>
+
+Enables the open_xiaomi_permissions_editor command without any pre-configured scope.
+
+</td>
+</tr>
+
+<tr>
+<td>
+
+`alarm:deny-open-xiaomi-permissions-editor`
+
+</td>
+<td>
+
+Denies the open_xiaomi_permissions_editor command without any pre-configured scope.
 
 </td>
 </tr>

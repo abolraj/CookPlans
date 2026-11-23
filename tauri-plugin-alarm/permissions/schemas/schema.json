@@ -319,6 +319,18 @@
           "markdownDescription": "Denies the dismiss command without any pre-configured scope."
         },
         {
+          "description": "Enables the get_oem_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-get-oem-info",
+          "markdownDescription": "Enables the get_oem_info command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the get_oem_info command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-get-oem-info",
+          "markdownDescription": "Denies the get_oem_info command without any pre-configured scope."
+        },
+        {
           "description": "Enables the is_alarm_ringing command without any pre-configured scope.",
           "type": "string",
           "const": "allow-is-alarm-ringing",
@@ -329,6 +341,18 @@
           "type": "string",
           "const": "deny-is-alarm-ringing",
           "markdownDescription": "Denies the is_alarm_ringing command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_autostart_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-autostart-settings",
+          "markdownDescription": "Enables the open_autostart_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_autostart_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-autostart-settings",
+          "markdownDescription": "Denies the open_autostart_settings command without any pre-configured scope."
         },
         {
           "description": "Enables the open_exact_alarm_settings command without any pre-configured scope.",
@@ -353,6 +377,30 @@
           "type": "string",
           "const": "deny-open-full-screen-intent-settings",
           "markdownDescription": "Denies the open_full_screen_intent_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_xiaomi_battery_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-xiaomi-battery-settings",
+          "markdownDescription": "Enables the open_xiaomi_battery_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_xiaomi_battery_settings command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-xiaomi-battery-settings",
+          "markdownDescription": "Denies the open_xiaomi_battery_settings command without any pre-configured scope."
+        },
+        {
+          "description": "Enables the open_xiaomi_permissions_editor command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-open-xiaomi-permissions-editor",
+          "markdownDescription": "Enables the open_xiaomi_permissions_editor command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the open_xiaomi_permissions_editor command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-open-xiaomi-permissions-editor",
+          "markdownDescription": "Denies the open_xiaomi_permissions_editor command without any pre-configured scope."
         },
         {
           "description": "Enables the ping command without any pre-configured scope.",
@@ -391,10 +439,10 @@
           "markdownDescription": "Denies the ring command without any pre-configured scope."
         },
         {
-          "description": "Default permissions for the alarm plugin\n#### This default permission set includes:\n\n- `allow-ring`\n- `allow-dismiss`\n- `allow-is-alarm-ringing`\n- `allow-open-exact-alarm-settings`\n- `allow-open-full-screen-intent-settings`",
+          "description": "Default permissions for the alarm plugin\n#### This default permission set includes:\n\n- `allow-ring`\n- `allow-dismiss`\n- `allow-is-alarm-ringing`\n- `allow-open-exact-alarm-settings`\n- `allow-open-full-screen-intent-settings`\n- `allow-get-oem-info`\n- `allow-open-autostart-settings`\n- `allow-open-xiaomi-battery-settings`\n- `allow-open-xiaomi-permissions-editor`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Default permissions for the alarm plugin\n#### This default permission set includes:\n\n- `allow-ring`\n- `allow-dismiss`\n- `allow-is-alarm-ringing`\n- `allow-open-exact-alarm-settings`\n- `allow-open-full-screen-intent-settings`"
+          "markdownDescription": "Default permissions for the alarm plugin\n#### This default permission set includes:\n\n- `allow-ring`\n- `allow-dismiss`\n- `allow-is-alarm-ringing`\n- `allow-open-exact-alarm-settings`\n- `allow-open-full-screen-intent-settings`\n- `allow-get-oem-info`\n- `allow-open-autostart-settings`\n- `allow-open-xiaomi-battery-settings`\n- `allow-open-xiaomi-permissions-editor`"
         }
       ]
     }

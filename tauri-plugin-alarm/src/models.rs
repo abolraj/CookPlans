@@ -22,3 +22,10 @@ fn default_dismiss_label() -> String {
 pub struct RingingStatus {
     pub ringing: bool,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct OemInfo {
+    pub manufacturer: String,
+    pub is_xiaomi: bool,
+}

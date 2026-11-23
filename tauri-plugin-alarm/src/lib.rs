@@ -9,7 +9,7 @@ mod mobile;
 mod models;
 
 pub use error::{Error, Result};
-pub use models::{AlarmArgs, RingingStatus};
+pub use models::{AlarmArgs, OemInfo, RingingStatus};
 
 #[cfg(desktop)]
 pub use desktop::Alarm;
@@ -51,6 +51,26 @@ async fn open_full_screen_intent_settings(app: AppHandle) -> Result<()> {
     app.alarm().open_full_screen_intent_settings()
 }
 
+#[tauri::command]
+async fn get_oem_info(app: AppHandle) -> Result<OemInfo> {
+    app.alarm().get_oem_info()
+}
+
+#[tauri::command]
+async fn open_autostart_settings(app: AppHandle) -> Result<()> {
+    app.alarm().open_autostart_settings()
+}
+
+#[tauri::command]
+async fn open_xiaomi_battery_settings(app: AppHandle) -> Result<()> {
+    app.alarm().open_xiaomi_battery_settings()
+}
+
+#[tauri::command]
+async fn open_xiaomi_permissions_editor(app: AppHandle) -> Result<()> {
+    app.alarm().open_xiaomi_permissions_editor()
+}
+
 pub fn init() -> TauriPlugin<Wry> {
     Builder::<Wry>::new("alarm")
         .invoke_handler(tauri::generate_handler![
@@ -59,6 +79,10 @@ pub fn init() -> TauriPlugin<Wry> {
             is_alarm_ringing,
             open_exact_alarm_settings,
             open_full_screen_intent_settings,
+            get_oem_info,
+            open_autostart_settings,
+            open_xiaomi_battery_settings,
+            open_xiaomi_permissions_editor,
         ])
         .setup(|app, api| {
             let alarm = Alarm::new(app, api)?;

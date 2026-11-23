@@ -12,7 +12,13 @@
     "fullScreenIntent": "Full-screen intent",
     "grant": "Grant",
     "granted": "Granted",
-    "openSettings": "Open settings"
+    "openSettings": "Open settings",
+    "xiaomiTitle": "Xiaomi / MIUI extra steps",
+    "xiaomiNote": "Xiaomi stops apps from starting in the background. Turn these on, or alarms will not ring when the app is closed.",
+    "autostart": "Autostart: allow CookPlans",
+    "batteryNoRestrictions": "Battery saver: No restrictions",
+    "lockScreenPopup": "Show on lock screen + pop-ups in background",
+    "markDone": "I enabled it"
   },
   "notificationContent": {
     "stepTitle": "{{stepName}}",
